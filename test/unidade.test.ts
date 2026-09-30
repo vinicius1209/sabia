@@ -6,7 +6,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { offsetDaMedia, ehDisciplina, montarNotas } from "../src/agentes/sabia/capacidades/boletim.ts";
+import { colunasDoBoletim, ehDisciplina, extrairLegenda, LAYOUT_CONHECIDO, montarNotas, type Nota } from "../src/agentes/sabia/capacidades/boletim.ts";
 import { marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
 import { montarHorarios } from "../src/agentes/sabia/capacidades/horarios.ts";
 import { montarDiario } from "../src/agentes/sabia/capacidades/diario.ts";
@@ -19,56 +19,125 @@ const registro = criarRegistro(sabia.capacidades);
 const { capacidades: CAPACIDADES, descricaoDasFontes, escolherLocal, ChamadaFerramenta, argsPadrao, Plano, Resposta, limparResposta } =
   registro;
 
-/* Cabecalho real do Activesoft (uma linha so, como vem raspado). */
-const CABECALHO = [
-  "Disciplinas", "1º SEM", "2º SEM", "MA", "RECF", "MF", "Total de\nfaltas", "Situação",
-  "T1", "T2", "SIM", "P1", "P2", "RS", "AJUSTE", "MED", "F",
-  "T1", "T2", "SIM", "P1", "P2", "RS", "AJUSTE", "MED", "F",
+/* O cabecalho real do boletim, em dois niveis (medido em set/2026). */
+const GRUPOS = [
+  { rotulo: "Disciplinas", colspan: 1, rowspan: 2 },
+  { rotulo: "1º SEM", colspan: 9, rowspan: 1 },
+  { rotulo: "2º SEM", colspan: 9, rowspan: 1 },
+  { rotulo: "MA", colspan: 2, rowspan: 1 },
+  { rotulo: "RECF", colspan: 4, rowspan: 1 },
+  { rotulo: "MF", colspan: 2, rowspan: 1 },
+  { rotulo: "Total de faltas", colspan: 1, rowspan: 2 },
+  { rotulo: "Situação de conclusão na disciplina", colspan: 1, rowspan: 2 },
 ];
-/* Linhas no layout real, com notas ficticias. Fisica tem 8,5 no 1o sem e um
-   6,0 solto no 2o semestre (o erro que o agente cometeu de verdade). */
-const FISICA = ["Física", "9,0", "9,5", "8,0", "8,0", "0,0", "7,5", "*", "8,5", "6",
-                "-", "-", "-", "6,0", "-", "-", "-", "--", "3"];
-const MATEMATICA = ["Matemática", "9,5", "8,8", "7,6", "9,0", "3,0", "*", "*", "7,3", "12",
-                    "7,1", "-", "-", "-", "-", "-", "-", "--", "4"];
-const EDFISICA = ["Educação Física *", "CE", "CE", "CE", "CE", "CE", "*", "*", "CE", "1"];
+const SIGLAS = [
+  "T1", "T2", "SIM", "P1", "P2", "RS", "AJUSTE", "MED", "F",
+  "T1", "T2", "SIM", "P1", "P2", "RS", "AJUSTE", "MED", "F",
+  "MED", "F", "REC", "Cons.Final", "MED", "F", "MED", "F",
+];
+const VAZIO_2SEM = ["-", "-", "-", "-", "-", "-", "-", "--", "-"];
+const SEM_ANUAL = ["--", "-", "-", "-", "--", "-", "--", "-"]; // MA, RECF, MF ainda sem nada
+
+/* Uma linha no layout real (disciplina + 28 colunas), com notas FICTICIAS. */
+const linha = (nome: string, s1: string[], s2: string[], resto: string[], total: string) =>
+  [nome, ...s1, ...s2, ...resto, total, "Cursando"];
+
+/* Fisica: 8,5 de media no 1o sem e um 6,0 solto no 2o (o erro de verdade: o
+   agente mostrava 6,0). */
+const FISICA = linha("Física", ["9,0", "9,5", "8,0", "8,0", "0,0", "7,5", "*", "8,5", "6"],
+  ["-", "-", "-", "6,0", "-", "-", "-", "--", "3"], SEM_ANUAL, "9");
+/* Matematica: 12 faltas no 1o sem, 17 no ano. */
+const MATEMATICA = linha("Matemática", ["9,5", "8,8", "7,6", "9,0", "3,0", "*", "*", "7,3", "12"],
+  ["7,1", "-", "-", "-", "-", "-", "-", "--", "5"], SEM_ANUAL, "17");
+/* Portugues: um 0,0 no T2 e 4,1 na P2, e a recuperacao (RS) 8,6. O agente
+   dizia "notas baixas: 0,0 e 4,1" sem dizer de onde eram. */
+const PORTUGUES = linha("Língua Portuguesa e suas Literaturas", ["8,0", "0,0", "7,9", "7,0", "4,1", "8,6", "*", "6,4", "3"],
+  ["-", "-", "-", "6,8", "-", "-", "-", "--", "1"], SEM_ANUAL, "4");
+const EDFISICA = linha("Educação Física *", ["CE", "CE", "CE", "CE", "CE", "*", "*", "CE", "1"], VAZIO_2SEM, SEM_ANUAL, "1");
+const UCC = linha("UCC - NEA - Ciências da Natureza e suas Tecnologias *", ["CE", "CE", "CE", "CE", "CE", "*", "*", "CE", "14"],
+  VAZIO_2SEM, SEM_ANUAL, "14");
+/* Um ano fechado: a media anual existe e vale mais que a de cada semestre. */
+const ARTE = linha("Arte", ["8,0", "8,0", "8,0", "8,0", "8,0", "*", "*", "8,0", "1"],
+  ["9,0", "9,0", "9,0", "9,0", "9,0", "*", "*", "9,0", "1"], ["8,5", "2", "-", "-", "--", "-", "--", "-"], "2");
 const RODAPE = ["Declaro para os devidos fins que recebi o boletim escolar de Fulana de Tal", "x", "y", "z"];
 
-describe("boletim: qual coluna e a media", () => {
-  test("acha o offset da MED a partir do T1", () => {
-    assert.equal(offsetDaMedia([CABECALHO]), 7);
+describe("boletim: cada coluna com o nome certo", () => {
+  test("o cabecalho em dois niveis vira as 29 colunas conhecidas", () => {
+    assert.deepEqual(colunasDoBoletim(GRUPOS, SIGLAS), LAYOUT_CONHECIDO);
   });
 
-  test("sem cabecalho reconhecivel, usa o layout padrao", () => {
-    assert.equal(offsetDaMedia([["lixo", "sem", "cabecalho"]]), 7);
+  test("cabecalho que nao bate devolve null (e a saida avisa)", () => {
+    assert.equal(colunasDoBoletim([{ rotulo: "lixo", colspan: 3, rowspan: 1 }], ["a", "b", "c"]), null);
   });
 
-  test("Fisica e 8,5 (media do 1o sem), NAO 6,0 (prova solta do 2o sem)", () => {
-    const [fisica] = montarNotas([CABECALHO, FISICA]);
+  test("Fisica e 8,5, a media do 1o SEMESTRE, e diz que e do semestre", () => {
+    const [fisica] = montarNotas([FISICA]);
     assert.equal(fisica.media, "8,5");
-    assert.equal(fisica.faltas, "6");
+    assert.equal(fisica.mediaDe, "1º semestre");
+  });
+
+  test("o 6,0 do 2o semestre aparece com o nome: P1 do 2o semestre", () => {
+    const [fisica] = montarNotas([FISICA]);
+    assert.deepEqual(fisica.semestre2.avaliacoes, [{ sigla: "P1", valor: "6,0" }]);
+    assert.equal(fisica.semestre2.media, null, "o 2o semestre nao fechou");
   });
 
   test("Matematica e 7,3, NAO 9,5 (que e a nota do trabalho 1)", () => {
-    const [mat] = montarNotas([CABECALHO, MATEMATICA]);
+    const [mat] = montarNotas([MATEMATICA]);
     assert.equal(mat.media, "7,3");
   });
 
-  test("conceito (CE) vem como conceito, sem virar numero", () => {
-    const [ed] = montarNotas([CABECALHO, EDFISICA]);
+  test("faltas sao as do ANO (17), nao so do 1o semestre (12)", () => {
+    const [mat] = montarNotas([MATEMATICA]);
+    assert.equal(mat.faltasTotal, "17");
+    assert.equal(mat.semestre1.faltas, "12");
+  });
+
+  test("o 0,0 vem com a sigla, junto da recuperacao, e a media continua a media", () => {
+    const [pt] = montarNotas([PORTUGUES]);
+    const s1 = Object.fromEntries(pt.semestre1.avaliacoes.map((a) => [a.sigla, a.valor]));
+    assert.equal(s1.T2, "0,0");
+    assert.equal(s1.RS, "8,6");
+    assert.equal(pt.media, "6,4");
+  });
+
+  test('"-", "--" e "*" nunca viram avaliacao', () => {
+    const [pt] = montarNotas([PORTUGUES]);
+    for (const a of [...pt.semestre1.avaliacoes, ...pt.semestre2.avaliacoes]) {
+      assert.doesNotMatch(a.valor, /^(-+|\*)$/, `${a.sigla} veio como avaliacao com "${a.valor}"`);
+    }
+    assert.equal(pt.semestre1.avaliacoes.some((a) => a.sigla === "AJUSTE"), false);
+  });
+
+  test("quando existe media anual, ela vence a do semestre", () => {
+    const [arte] = montarNotas([ARTE]);
+    assert.equal(arte.media, "8,5");
+    assert.equal(arte.mediaDe, "média anual");
+  });
+
+  test("conceito (CE) vem como conceito, e o * vira itinerario, fora do nome", () => {
+    const [ed] = montarNotas([EDFISICA]);
     assert.equal(ed.media, "CE");
+    assert.equal(ed.disciplina, "Educação Física");
+    assert.equal(ed.itinerario, true);
+  });
+
+  test("disciplina de nome longo NAO some (o limite antigo descartava a UCC de 53 letras)", () => {
+    const notas = montarNotas([FISICA, UCC]);
+    assert.equal(notas.length, 2);
+    assert.equal(notas[1].disciplina, "UCC - NEA - Ciências da Natureza e suas Tecnologias");
   });
 
   test("rodape longo nao entra como disciplina (barrado pelo tamanho)", () => {
-    assert.equal(ehDisciplina(RODAPE[0]), false);
-    const notas = montarNotas([CABECALHO, FISICA, RODAPE]);
+    const longo = "Esta e uma linha de rodape bem comprida que nao tem nenhuma palavra do filtro";
+    assert.ok(longo.length > 60);
+    assert.equal(ehDisciplina(longo), false);
+    const notas = montarNotas([FISICA, RODAPE]);
     assert.equal(notas.length, 1);
     assert.equal(notas[0].disciplina, "Física");
   });
 
   test("rodape CURTO tambem e barrado, pelo filtro de palavras", () => {
-    // sem estes casos o teste acima passa so por causa do limite de tamanho,
-    // e a gente nunca saberia se o filtro de palavras quebrou
     // um caso por palavra do filtro, senao uma delas pode sumir sem ninguem ver
     for (const curto of [
       "Declaro recebimento",   // declaro
@@ -93,6 +162,45 @@ describe("boletim: qual coluna e a media", () => {
   test("a propria linha de cabecalho nao entra como disciplina", () => {
     assert.equal(ehDisciplina("Disciplinas"), false);
     assert.equal(ehDisciplina("T1"), false);
+  });
+});
+
+describe("boletim: a legenda oficial", () => {
+  const RODAPE_REAL = [
+    "* = Dispensado da avaliação",
+    "|",
+    "2CH = 2ª Chamada",
+    "-- = Disciplina não requer nota",
+    "Disciplinas sinalizadas com * são itinerários formativos obrigatórios",
+    "CE    -    CONCLUIU COM EXCELÊNCIA     CS    -    CONCLUIU SATISFATORIAMENTE    CP   -    CONCLUIU PARCIALMENTE   NC   -    NÃO CONCLUIU",
+    "LEGENDA:",
+    "T1 - Trabalho 1",
+    "P2 - Prova 2",
+    "REC - Recuperação",
+    "Ajuste.",
+    "Declaro para os devidos fins que recebi o boletim escolar de Fulana de Tal, matrícula 12345678.",
+    "Itajai (SC), 30 de setembro de 2026 às 16:05",
+    "Assinatura",
+  ].join("\n");
+
+  test("traz as siglas como a escola escreveu, e separa os conceitos", () => {
+    const l = extrairLegenda(RODAPE_REAL);
+    for (const esperado of [
+      "* = Dispensado da avaliação",
+      "2CH = 2ª Chamada",
+      "-- = Disciplina não requer nota",
+      "T1 - Trabalho 1",
+      "REC - Recuperação",
+      "CE - CONCLUIU COM EXCELÊNCIA",
+      "NC - NÃO CONCLUIU",
+    ]) {
+      assert.ok(l.includes(esperado), `faltou "${esperado}" em ${JSON.stringify(l)}`);
+    }
+  });
+
+  test("a linha com nome e matricula da aluna NAO entra na legenda", () => {
+    const l = extrairLegenda(RODAPE_REAL).join(" | ");
+    assert.doesNotMatch(l, /Fulana|matr[ií]cula|Declaro|Itajai|Assinatura|2026/i);
   });
 });
 
@@ -124,6 +232,36 @@ describe("calendario: passado x futuro", () => {
   test("evento de hoje NAO conta como passado", () => {
     const e = marcarEventos([{ mes: "September 2026", dia: 26, evento: "Hoje" }], hoje);
     assert.equal(e[0].passou, false);
+  });
+
+  test("marca o que e avaliacao: o calendario mistura prova com festa e feriado", () => {
+    const e = marcarEventos(
+      [
+        { mes: "October 2026", dia: 12, evento: "Feriado - Nossa Senhora Aparecida" },
+        { mes: "October 2026", dia: 14, evento: "Oficina de Oratória" },
+        { mes: "October 2026", dia: 17, evento: "Simulado - 9° ao 3°EM" },
+        { mes: "October 2026", dia: 20, evento: "Avaliação de Química" },
+      ],
+      hoje
+    );
+    assert.deepEqual(e.map((x) => x.ehAvaliacao), [false, false, true, true]);
+  });
+
+  test("segunda chamada e avaliacao, mas marcada a parte (so vale para quem faltou)", () => {
+    const [e] = marcarEventos([{ mes: "October 2026", dia: 2, evento: "Prova de Segunda Chamada" }], hoje);
+    assert.equal(e.ehAvaliacao, true);
+    assert.equal(e.ehSegundaChamada, true);
+  });
+
+  test("evento sem data entendivel vai para o FIM, e nao vira o proximo", () => {
+    const e = marcarEventos(
+      [
+        { mes: "???", dia: 5, evento: "Sem data" },
+        { mes: "October 2026", dia: 17, evento: "Simulado" },
+      ],
+      hoje
+    );
+    assert.deepEqual(e.map((x) => x.evento), ["Simulado", "Sem data"]);
   });
 
   test("mes que nao da para interpretar nao quebra", () => {
@@ -182,6 +320,21 @@ describe("contratos", () => {
   });
 });
 
+/** uma disciplina no formato do boletim, so com o que o teste precisa */
+const nota = (disciplina: string, media: string): Nota => ({
+  disciplina,
+  itinerario: false,
+  media,
+  mediaDe: "1º semestre",
+  faltasTotal: "0",
+  situacao: "Cursando",
+  semestre1: { avaliacoes: [], media, faltas: "0" },
+  semestre2: { avaliacoes: [], media: null, faltas: null },
+  mediaAnual: null,
+  recuperacaoFinal: null,
+  mediaFinal: null,
+});
+
 describe("motor local (plano B da feira)", () => {
   const m = motorLocal({ registro });
   const casos: [string, string[]][] = [
@@ -208,10 +361,9 @@ describe("motor local (plano B da feira)", () => {
       dados: {
         ler_boletim: {
           formato: "tabela",
-          notas: [
-            { disciplina: "Física", media: "8,5", faltas: "6", valores: [] },
-            { disciplina: "História", media: "9,1", faltas: "3", valores: [] },
-          ],
+          notas: [nota("Física", "8,5"), nota("História", "9,1")],
+          legenda: [],
+          colunasConferidas: true,
         },
       },
     });

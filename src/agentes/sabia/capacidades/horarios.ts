@@ -96,7 +96,9 @@ export default defineCapacidade({
   intencao: "horarios",
   descricao:
     "o quadro de horários da semana (que aula tem em cada dia). Cada dia já vem " +
-    'marcado com "ehHoje" e "ehAmanha": use esses campos, não tente deduzir o dia.',
+    'marcado com "ehHoje" e "ehAmanha": use esses campos, não tente deduzir o dia. ' +
+    "É a grade PADRÃO da semana: não sabe de feriado, passeio ou troca de aula. Se " +
+    '"disciplina" vier igual ao "codigo" (ex.: GEO), cite o código, não adivinhe o nome.',
   entrada: z.object({}),
   saida: Saida,
 

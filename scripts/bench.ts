@@ -4,6 +4,7 @@
  *   MODELOS="gpt-6-luna,gpt-5.6-luna" RODADAS=3 npm run bench
  *   MODELOS="gpt-6-luna,claude:haiku,claude:sonnet,codex:" npm run bench
  *   DIFICIL=1 npm run bench
+ *   CASOS=interpretacao npm run bench   (as armadilhas de leitura que ja aconteceram)
  *
  * Usa o MESMO motor, o mesmo prompt e o mesmo contrato da produção
  * (criarMotor + montarSistema). A versão anterior tinha uma cópia própria do prompt, que
@@ -16,6 +17,8 @@ import { carregarConfig, lerConfig } from "../src/nucleo/config.ts";
 import { criarMotor } from "../src/nucleo/motores/index.ts";
 import { montarSistema } from "../src/nucleo/prompt.ts";
 import { criarRegistro, type Plano } from "../src/nucleo/registro.ts";
+import { extrairLegenda, montarNotas } from "../src/agentes/sabia/capacidades/boletim.ts";
+import { marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
 
 // as mesmas chaves do app (~/.sabia/config.json, ou o .env na primeira vez)
 carregarConfig(path.resolve(import.meta.dirname, ".."));
@@ -25,25 +28,46 @@ const deps = { registro, sistema: () => montarSistema(sabia, registro, lerConfig
 const CANDIDATOS = (process.env.MODELOS || "gpt-6-luna,gpt-5.6-luna,gpt-4.1-mini").split(",");
 const RODADAS = Number(process.env.RODADAS || 1);
 
-/* dados ficticios, no formato real dos leitores (hoje = 26/09/2026) */
+/* Dados FICTICIOS, gerados pelos proprios leitores (montarNotas, marcarEventos)
+   a partir de linhas no layout real: se o formato mudar, o bench muda junto.
+   Hoje = 26/09/2026. */
+const HOJE = new Date(2026, 8, 26);
+const SEM_ANUAL = ["--", "-", "-", "-", "--", "-", "--", "-"];
+const VAZIO_2SEM = ["-", "-", "-", "-", "-", "-", "-", "--", "-"];
+const linha = (nome: string, s1: string[], s2: string[], total: string) =>
+  [nome, ...s1, ...s2, ...SEM_ANUAL, total, "Cursando"];
+
+const BOL = {
+  formato: "tabela",
+  notas: montarNotas([
+    linha("Matemática", ["9,5", "8,8", "7,6", "9,0", "3,0", "*", "*", "7,3", "12"], ["7,1", "-", "-", "-", "-", "-", "-", "--", "5"], "17"),
+    linha("Física", ["9,0", "9,5", "8,0", "8,0", "0,0", "7,5", "*", "8,5", "6"], ["-", "-", "-", "6,0", "-", "-", "-", "--", "3"], "9"),
+    linha("História", ["9,0", "9,5", "9,0", "9,2", "9,0", "*", "*", "9,1", "3"], VAZIO_2SEM, "3"),
+    // Portugues: um 0,0 no T2 e 4,1 na P2, e a recuperacao (RS) 8,6
+    linha("Língua Portuguesa e suas Literaturas", ["8,0", "0,0", "7,9", "7,0", "4,1", "8,6", "*", "5,8", "2"], ["-", "-", "-", "6,8", "-", "-", "-", "--", "1"], "3"),
+    linha("Educação Física *", ["CE", "CE", "CE", "CE", "CE", "*", "*", "CE", "1"], VAZIO_2SEM, "1"),
+  ]),
+  legenda: extrairLegenda(
+    "* = Dispensado da avaliação\n-- = Disciplina não requer nota\n" +
+      "CE - CONCLUIU COM EXCELÊNCIA   CS - CONCLUIU SATISFATORIAMENTE   CP - CONCLUIU PARCIALMENTE   NC - NÃO CONCLUIU\n" +
+      "T1 - Trabalho 1\nT2 - Trabalho 2\nSIM - Simulado\nP1 - Prova 1\nP2 - Prova 2\nREC - Recuperação"
+  ),
+  colunasConferidas: true,
+};
 const CAL = {
   mes: "September 2026 e October 2026",
   hoje: "2026-09-26",
-  eventos: [
-    { mes: "September 2026", dia: 17, evento: "Avaliação de Química e Redação - EM", data: "2026-09-17", passou: true },
-    { mes: "September 2026", dia: 23, evento: "Prova de Segunda Chamada", data: "2026-09-23", passou: true },
-    { mes: "October 2026", dia: 17, evento: "Simulado - 9° ao 3°EM", data: "2026-10-17", passou: false },
-  ],
-};
-const BOL = {
-  formato: "tabela",
-  notas: [
-    { disciplina: "Matemática", media: "7,3", faltas: "12", valores: [] },
-    { disciplina: "Física", media: "8,5", faltas: "6", valores: [] },
-    { disciplina: "História", media: "9,1", faltas: "3", valores: [] },
-    { disciplina: "Língua Portuguesa e suas Literaturas", media: "5,8", faltas: "2", valores: [] },
-    { disciplina: "Educação Física *", media: "CE", faltas: "1", valores: [] },
-  ],
+  eventos: marcarEventos(
+    [
+      { mes: "September 2026", dia: 17, evento: "Avaliação de Química e Redação - EM" },
+      { mes: "September 2026", dia: 23, evento: "Prova de Segunda Chamada" },
+      { mes: "October 2026", dia: 2, evento: "Prova de Segunda Chamada" },
+      { mes: "October 2026", dia: 12, evento: "Feriado - Nossa Senhora Aparecida" },
+      { mes: "October 2026", dia: 14, evento: "Oficina de Oratória" },
+      { mes: "October 2026", dia: 17, evento: "Simulado - 9° ao 3°EM" },
+    ],
+    HOJE
+  ),
 };
 const DIA = {
   data: "28/09/2026",
@@ -59,31 +83,52 @@ interface Caso {
   /** args esperados de alguma ferramenta, quando importa */
   args?: Record<string, unknown>;
   dados: Record<string, unknown> | null;
-  precisa?: string;
-  proibido?: string[];
+  /** tudo isto precisa aparecer na resposta */
+  precisa?: string[];
+  /** nada disto pode aparecer */
+  proibido?: RegExp[];
 }
 
 const FACEIS: Caso[] = [
   { p: "Oi, tudo bem?", tools: [], dados: null },
-  { p: "Qual minha nota de matematica?", tools: ["ler_boletim"], dados: { ler_boletim: BOL }, precisa: "7,3" },
+  { p: "Qual minha nota de matematica?", tools: ["ler_boletim"], dados: { ler_boletim: BOL }, precisa: ["7,3"] },
   { p: "Quando e minha proxima prova?", tools: ["ler_calendario"], dados: { ler_calendario: CAL },
-    precisa: "17", proibido: ["23 de setembro", "Segunda Chamada"] },
+    precisa: ["17"], proibido: [/23 de setembro/i] },
 ];
 
 const DIFICEIS: Caso[] = [
   { p: "Tem alguma materia que eu preciso me preocupar?", tools: ["ler_boletim"],
-    dados: { ler_boletim: BOL }, precisa: "5,8" },
+    dados: { ler_boletim: BOL }, precisa: ["5,8"] },
   { p: "Qual minha nota de educacao fisica?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
-    precisa: "CE", proibido: ["7,3", "8,5", "9,1", "5,8"] },
+    precisa: ["CE"], proibido: [/7,3|8,5|9,1|5,8/] },
   { p: "Quando foi a prova de segunda chamada?", tools: ["ler_calendario"],
-    dados: { ler_calendario: CAL }, precisa: "23", proibido: ["Simulado"] },
+    dados: { ler_calendario: CAL }, precisa: ["23"], proibido: [/simulado/i] },
   // precisa escolher a DATA certa pela tabela de dias do cabecalho
   { p: "Que tarefa passaram na segunda-feira?", tools: ["ler_diario"],
-    args: { data: "28/09/2026" }, dados: { ler_diario: DIA }, precisa: "Lista 7",
-    proibido: ["Biologia: Sem tarefa"] },
+    args: { data: "28/09/2026" }, dados: { ler_diario: DIA }, precisa: ["Lista 7"],
+    proibido: [/Biologia: Sem tarefa/] },
 ];
 
-const CASOS = process.env.DIFICIL ? DIFICEIS : FACEIS;
+/* As armadilhas de interpretacao que ja aconteceram de verdade (set/2026). */
+const INTERPRETACAO: Caso[] = [
+  // o 0,0 do T2 foi chamado de "nota baixa" sem dizer de onde era
+  { p: "Tirei zero em alguma coisa?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
+    precisa: ["T2", "5,8"], proibido: [/reprovad|aprovad/i] },
+  // a media e do 1o semestre: nao pode virar "media do ano"
+  { p: "Qual minha media anual de matematica?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
+    precisa: ["7,3", "1º semestre"] },
+  // faltas: o total do ano (17), nao so do 1o semestre (12)
+  { p: "Quantas faltas eu tenho em matematica?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
+    precisa: ["17"] },
+  // a segunda chamada de 02/10 nao e a proxima prova de quem nao faltou
+  { p: "Quando e minha proxima prova?", tools: ["ler_calendario"], dados: { ler_calendario: CAL },
+    precisa: ["17"], proibido: [/pr[oó]xima (prova|avalia[cç][aã]o)[^.]{0,40}(segunda chamada|2 de outubro|02\/10)/i] },
+  // os dados nao dizem a media minima: nada de aprovado/reprovado
+  { p: "Eu vou passar de ano?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
+    proibido: [/\b(est[aá]|foi|ser[aá]|vai ser) (aprovad|reprovad)/i, /m[eé]dia m[ií]nima [eé] \d/i] },
+];
+
+const CASOS = process.env.CASOS === "interpretacao" ? INTERPRETACAO : process.env.DIFICIL ? DIFICEIS : FACEIS;
 
 const nomes = (p: Plano) => p.ferramentas.map((f) => f.nome);
 
@@ -118,9 +163,12 @@ for (const candidato of CANDIDATOS) {
           dados: c.dados ?? undefined,
         });
         const txt = resp.resposta + JSON.stringify(resp.itens);
-        let okResp = c.precisa ? txt.includes(c.precisa) : true;
-        for (const bad of c.proibido ?? []) if (txt.includes(bad)) okResp = false;
-        if (!okResp) falhas.add(`resposta "${c.p.slice(0, 26)}": ${resp.resposta.slice(0, 60)}`);
+        let okResp = (c.precisa ?? []).every((x) => txt.includes(x));
+        for (const bad of c.proibido ?? []) if (bad.test(txt)) okResp = false;
+        if (!okResp) {
+          const itens = resp.itens.map((i) => `${i.rotulo}=${i.valor}`).join("; ");
+          falhas.add(`resposta "${c.p.slice(0, 26)}": ${resp.resposta.slice(0, 220)}${itens ? ` [itens: ${itens.slice(0, 200)}]` : ""}`);
+        }
 
         if (ok && okResp) acertos++;
       }

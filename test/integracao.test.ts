@@ -100,25 +100,40 @@ describe("Activesoft: boletim", { timeout: 240_000 }, () => {
     }
   });
 
-  test("nao confunde nota de trabalho com media", async () => {
-    const dados = (await executar("ler_boletim", {}, semPasso)) as {
-      formato: string;
-      notas: { disciplina: string; media: string; valores: string[] }[];
-    };
-    if (dados.formato !== "tabela") return;
+  test("cada coluna com o nome certo, e nada de dado pessoal na legenda", async () => {
+    const dados = await executar("ler_boletim", {}, semPasso);
+    const r = SaidaBoletim.safeParse(dados);
+    assert.ok(r.success && r.data.formato === "tabela");
+    if (!r.success || r.data.formato !== "tabela") return;
+    const b = r.data;
 
-    // a media tem que ser um dos valores da linha, na posicao da coluna MED,
-    // e nao simplesmente o primeiro numero que aparece
-    for (const n of dados.notas) {
-      if (!/^\d/.test(n.media)) continue;
-      assert.ok(
-        n.valores.includes(n.media),
-        `media "${n.media}" de ${n.disciplina} nao esta entre os valores da linha`
-      );
-      const primeiroNumero = n.valores.find((v) => /^\d+[,.]\d+$/.test(v));
-      if (primeiroNumero && n.valores.filter((v) => /^\d+[,.]\d+$/.test(v)).length > 2) {
-        // nao provamos qual e a media, mas garantimos que nao caimos no atalho errado
-        assert.ok(true);
+    // se a escola mudar a tabela, isto acusa antes da feira
+    assert.equal(b.colunasConferidas, true, "o cabeçalho do boletim não bateu com o layout conhecido");
+
+    assert.ok(b.legenda.some((l) => /^CE - /.test(l)), `legenda sem os conceitos: ${JSON.stringify(b.legenda)}`);
+    assert.doesNotMatch(b.legenda.join(" | "), /declaro|matr[ií]cula|assinatura|\d{8}/i, "dado pessoal vazou na legenda");
+
+    const num = (v: string | null) => (v && /^\d+([,.]\d+)?$/.test(v) ? Number(v.replace(",", ".")) : null);
+    for (const n of b.notas) {
+      // a "media" é exatamente a coluna que ela diz ser
+      const esperada =
+        n.mediaDe === "média final" ? n.mediaFinal
+        : n.mediaDe === "média anual" ? n.mediaAnual
+        : n.mediaDe === "2º semestre" ? n.semestre2.media
+        : n.mediaDe === "1º semestre" ? n.semestre1.media
+        : null;
+      if (n.mediaDe !== "sem média") assert.equal(n.media, esperada, `${n.disciplina}: média não bate com ${n.mediaDe}`);
+
+      // o total do ano nunca é menor que o de um semestre
+      const total = num(n.faltasTotal);
+      for (const s of [n.semestre1.faltas, n.semestre2.faltas]) {
+        const f = num(s);
+        if (total !== null && f !== null) assert.ok(total >= f, `${n.disciplina}: total ${total} < semestre ${f}`);
+      }
+
+      // parcial nunca é "-", "--" ou "*"
+      for (const a of [...n.semestre1.avaliacoes, ...n.semestre2.avaliacoes]) {
+        assert.doesNotMatch(a.valor, /^(-+|\*)$/, `${n.disciplina} ${a.sigla}: "${a.valor}"`);
       }
     }
   });

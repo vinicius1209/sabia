@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { ArrowUpRightIcon } from "lucide-react"
+import { Fragment, useState } from "react"
+import { ArrowUpRightIcon, ChevronRightIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cartao, type ArtefatosDoAgente, type PropsDoArtefato } from "@/components/artefatos/tipos"
@@ -27,33 +27,96 @@ const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 /* ------------------------------- boletim ------------------------------ */
 
 function CartaoBoletim({ dados, itens }: PropsDoArtefato<Boletim>) {
+  const [aberta, setAberta] = useState<string | null>(null)
   if (dados.formato === "texto") {
     return <p className="whitespace-pre-wrap text-sm text-muted-foreground">{dados.conteudo}</p>
   }
+  // de onde são as médias: quase sempre todas do mesmo lugar ("1º semestre")
+  const origens = [...new Set(dados.notas.map((n) => n.mediaDe).filter((d) => d !== "sem média"))]
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Disciplina</TableHead>
-          <TableHead className="w-20 text-right">Média</TableHead>
-          <TableHead className="w-20 text-right">Faltas</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {dados.notas.map((n) => {
-          const destaque = citado(itens, n.disciplina)
-          return (
-            <TableRow key={n.disciplina} className={cn(destaque && "bg-primary/8 hover:bg-primary/12")}>
-              <TableCell className={cn("whitespace-normal", destaque && "font-medium")}>
-                {n.disciplina.replace(/\s*\*$/, "")}
-              </TableCell>
-              <TableCell className="text-right font-semibold tabular-nums">{n.media}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">{n.faltas}</TableCell>
-            </TableRow>
-          )
-        })}
-      </TableBody>
-    </Table>
+    <div className="flex flex-col gap-3">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Disciplina</TableHead>
+            <TableHead className="w-24 text-right">Média</TableHead>
+            <TableHead className="w-28 text-right">Faltas no ano</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {dados.notas.map((n) => {
+            const destaque = citado(itens, n.disciplina)
+            const parciais = [
+              ["1º semestre", n.semestre1],
+              ["2º semestre", n.semestre2],
+            ] as const
+            const temParcial = parciais.some(([, s]) => s.avaliacoes.length > 0)
+            const estaAberta = aberta === n.disciplina
+            return (
+              <Fragment key={n.disciplina}>
+                <TableRow
+                  className={cn(destaque && "bg-primary/8 hover:bg-primary/12", temParcial && "cursor-pointer")}
+                  onClick={() => temParcial && setAberta(estaAberta ? null : n.disciplina)}
+                  aria-expanded={temParcial ? estaAberta : undefined}
+                >
+                  <TableCell className={cn("whitespace-normal", destaque && "font-medium")}>
+                    <span className="flex items-center gap-1.5">
+                      {temParcial && (
+                        <ChevronRightIcon
+                          className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", estaAberta && "rotate-90")}
+                        />
+                      )}
+                      {n.disciplina}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {n.media}
+                    {origens.length > 1 && n.mediaDe !== "sem média" && (
+                      <span className="block text-[11px] font-normal text-muted-foreground">{n.mediaDe}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{n.faltasTotal}</TableCell>
+                </TableRow>
+                {estaAberta && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={3} className="whitespace-normal bg-muted/40 py-2.5">
+                      {parciais
+                        .filter(([, s]) => s.avaliacoes.length > 0)
+                        .map(([nome, s]) => (
+                          <p key={nome} className="text-[13px] text-muted-foreground">
+                            <span className="font-medium text-foreground">{nome}:</span>{" "}
+                            {s.avaliacoes.map((a) => `${a.sigla} ${a.valor}`).join(" · ")}
+                            {s.media ? ` · média ${s.media}` : " · média ainda não fechou"}
+                          </p>
+                        ))}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            )
+          })}
+        </TableBody>
+      </Table>
+      <p className="text-xs text-muted-foreground">
+        {origens.length === 1
+          ? origens[0].includes("semestre")
+            ? `Médias do ${origens[0]}. `
+            : `Médias: ${origens[0]}. `
+          : ""}
+        Clique numa disciplina para ver as avaliações. Uma nota parcial baixa pode ter sido substituída pela
+        recuperação.
+      </p>
+      {dados.legenda.length > 0 && (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none">Legenda do boletim</summary>
+          <ul className="mt-1.5 flex flex-col gap-0.5 pl-1">
+            {dados.legenda.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   )
 }
 

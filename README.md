@@ -129,7 +129,7 @@ prazo, ele desiste e avisa. Nada é contornado.
 npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
 npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
 npm run check      # tipos do servidor e da tela
-npm test           # 100 testes, sem rede e sem navegador, menos de 1s
+npm test           # 111 testes, sem rede e sem navegador, menos de 1s
 npm run test:real  # as 5 capacidades contra os sistemas reais
 npm run bench      # compara motores no trabalho real do agente
 ```
@@ -154,7 +154,8 @@ para conferir que a suíte acusa:
 
 | sabotagem | resultado |
 |---|---|
-| a média vira o primeiro número da linha | 4 testes falham |
+| a média vira o primeiro número da linha | 3 testes falham |
+| as faltas de um semestre no lugar das do ano | 1 teste falha |
 | inverter a lógica de "já passou" | 2 testes falham |
 | tirar uma palavra do filtro de rodapé | **nenhum falhava** |
 

@@ -81,7 +81,7 @@ Qualquer motor serve, desde que devolva o formato validado.
 
 | motor | como | acertos* | tempo por chamada |
 |---|---|---|---|
-| Claude Sonnet | **assinatura**, `claude -p --json-schema` | 5 a 6/7 | ~3,5 s, transmite |
+| Claude Sonnet | **assinatura**, `claude -p --json-schema` | 5 a 7/7 | ~3,5 s, transmite |
 | Claude Haiku | **assinatura**, `claude -p --json-schema` | 6/7 | ~5 s |
 | Antigravity (Gemini 3.8 Flash low) | **assinatura**, `agy -p --json-schema` | 7/7 | ~8 a 14 s |
 | Codex | **assinatura**, `codex exec --output-schema` | 7/7 | ~9 s |
@@ -119,6 +119,27 @@ Dois achados dessa integração:
   (é só uma frase de status para a tela), e o adaptador tenta de novo uma vez.
 - O validador da CLI do Claude não conhece o `$schema` do draft 2020-12, que é o
   padrão do Zod: o schema vai no formato draft-7.
+
+## Os dados sem margem para interpretação
+
+O modelo erra menos quando o dado já diz o que é. Cada capacidade entrega o dado
+com o significado junto, e a descrição dela diz o que NÃO dá para afirmar:
+
+- **Boletim:** as 28 colunas lidas pelo cabeçalho de dois níveis (1º SEM, 2º SEM,
+  MA, RECF, MF). A `media` é a que vale agora e `mediaDe` diz de onde ela é (no
+  meio do ano, só o 1º semestre); `faltasTotal` é o do ano; as parciais vêm com
+  a sigla; a legenda oficial do rodapé vai junto, sem a linha com nome e
+  matrícula. Sigla fora da legenda (RS, AJUSTE) é citada sem explicação, e
+  aprovado ou reprovado nunca é dito: a média mínima não está nos dados.
+- **Calendário:** `ehAvaliacao` separa prova de feriado e oficina; a segunda
+  chamada vem marcada à parte; evento sem data vai para o fim; e "não achei"
+  vale só para os meses lidos.
+- **Comunicados, horários, diário:** dizem o que falta (só o título de um
+  aviso, a grade padrão sem feriados, o que o professor registrou).
+
+O `npm run bench` tem um conjunto só dessas armadilhas (`CASOS=interpretacao`),
+tiradas de erros que aconteceram de verdade. Claude Sonnet e gpt-6-luna fazem
+10/10 em duas rodadas.
 
 ## O protocolo
 
@@ -159,8 +180,9 @@ login nem 2FA.
 os blocos de chat do [blocks.so](https://github.com/ephraimduncan/blocks)
 (`chat-03` para a conversa e a barra lateral, `ai-02` para o seletor de motor).
 
-- **O mascote é o indicador de estado**, e é um desenho em SVG com as partes
-  separadas (`web/src/agentes/sabia/mascote.tsx`): respira e pisca parado,
+- **O mascote é o indicador de estado**, e é um desenho em SVG de frente, fiel
+  ao ícone da marca, com as partes separadas
+  (`web/src/agentes/sabia/mascote.tsx`): respira e pisca parado,
   inclina a cabeça pensando, pula e bica buscando, abre o bico escrevendo, bate
   as asas quando responde, se chacoalha no erro. Fundo transparente. A galeria
   de estados fica em `/#mascotes`. Pacote sem mascote animado usa as poses PNG

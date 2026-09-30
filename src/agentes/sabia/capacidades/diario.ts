@@ -98,7 +98,9 @@ export default defineCapacidade({
     "o diário de classe de um dia: o que cada professor deu de conteúdo e qual " +
     'TAREFA foi passada. Cada disciplina tem "temTarefa": se for false, não houve ' +
     "tarefa e você não deve inventar uma. Use para perguntas sobre dever de casa, " +
-    "tarefa, trabalho passado em aula, ou o que foi dado na aula.",
+    "tarefa, trabalho passado em aula, ou o que foi dado na aula. É o que o professor " +
+    "REGISTROU: disciplina que não aparece no dia não teve registro, o que não quer " +
+    "dizer que não teve aula.",
   entrada: z.object({
     // .nullable(), e nao .optional(): o modo estrito da OpenAI recusa campo
     // opcional. Sem isto a pergunta "tarefa de segunda" quebrava o plano.

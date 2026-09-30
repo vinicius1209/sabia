@@ -18,6 +18,10 @@ export const Saida = z.object({
       data: z.string(),
       /** já aconteceu? calculado no código, o modelo não compara datas */
       passou: z.boolean(),
+      /** é prova/avaliação? calculado no código: o calendário mistura prova, feriado, oficina e festa */
+      ehAvaliacao: z.boolean(),
+      /** segunda chamada só vale para quem faltou à prova original */
+      ehSegundaChamada: z.boolean(),
     })
   ),
 });
@@ -31,22 +35,35 @@ const MESES: Record<string, number> = {
 
 export interface EventoBruto { mes: string; dia: number; evento: string }
 
-/** Marca data ISO e "passou", e ordena. Com o booleano pronto o modelo só
- *  precisa pegar o primeiro com passou=false. */
+/** O que conta como prova ou avaliação no calendário da escola. */
+export const AVALIACAO = /prova|avalia|simulado|recupera|exame|chamada|\bteste\b/i;
+const SEGUNDA_CHAMADA = /(2ª|2a|segunda)\s*chamada/i;
+
+/**
+ * Marca data ISO, "passou", se é avaliação, e ordena. Com os booleanos
+ * prontos o modelo só precisa pegar o primeiro com passou=false e
+ * ehAvaliacao=true, em vez de decidir sozinho o que é prova.
+ *
+ * Evento com mês que não dá para entender fica com data vazia e vai para o
+ * FIM: a data vazia ordenava antes de todas, e um evento sem data virava a
+ * "próxima prova".
+ */
 export function marcarEventos(brutos: EventoBruto[], inicioDeHoje: Date) {
   return brutos
     .map((e) => {
+      const tipo = { ehAvaliacao: AVALIACAO.test(e.evento), ehSegundaChamada: SEGUNDA_CHAMADA.test(e.evento) };
       const [nomeMes, ano] = (e.mes || "").split(" ");
       const mi = MESES[(nomeMes || "").toLowerCase()];
-      if (mi === undefined || !ano) return { ...e, data: "", passou: false };
+      if (mi === undefined || !ano) return { ...e, data: "", passou: false, ...tipo };
       const d = new Date(Number(ano), mi, e.dia);
       return {
         ...e,
         data: `${ano}-${String(mi + 1).padStart(2, "0")}-${String(e.dia).padStart(2, "0")}`,
         passou: d < inicioDeHoje,
+        ...tipo,
       };
     })
-    .sort((a, b) => a.data.localeCompare(b.data));
+    .sort((a, b) => (!a.data ? 1 : !b.data ? -1 : a.data.localeCompare(b.data)));
 }
 
 /* -------------------------- a capacidade --------------------------- */
@@ -60,7 +77,12 @@ export default defineCapacidade({
   descricao:
     "o calendário da escola, com datas de provas (Avaliações) e eventos. Cada " +
     'evento tem "passou" e a lista vem ordenada: pergunta sobre o FUTURO usa só ' +
-    "passou=false, sobre o PASSADO usa passou=true. Nunca troque um pelo outro.",
+    "passou=false, sobre o PASSADO usa passou=true. Nunca troque um pelo outro. " +
+    'O calendário mistura prova com feriado, oficina e festa: "prova" é só evento com ' +
+    'ehAvaliacao=true. Evento com ehSegundaChamada=true só vale para quem faltou à prova ' +
+    "original: não diga que é a próxima prova da aluna, cite à parte. Evento com data vazia " +
+    'não tem data confiável. Só foram lidos os meses em "mes": se não achar, diga que não ' +
+    "encontrou NESSES meses, nunca que não existe.",
   entrada: z.object({}),
   saida: Saida,
 
@@ -128,14 +150,14 @@ export default defineCapacidade({
     raciocinio: "Vou conferir o calendário da escola para achar as datas.",
     responder(_pergunta, d) {
       const futuros = d.eventos.filter((e) => !e.passou);
-      const provas = futuros.filter((e) => /avalia|prova|simulado/i.test(e.evento));
+      const provas = futuros.filter((e) => e.ehAvaliacao && !e.ehSegundaChamada && e.data);
       const lista = provas.length ? provas : futuros;
       return {
         resposta: provas.length
-          ? `Sua próxima é ${provas[0].evento}, dia ${provas[0].dia}.`
+          ? `Sua próxima avaliação é ${provas[0].evento}, dia ${provas[0].dia}.`
           : futuros.length
-            ? "Não achei prova marcada, mas tem estes eventos vindo."
-            : "Não tem nada marcado no calendário daqui pra frente.",
+            ? `Não achei prova marcada em ${d.mes}, mas tem estes eventos vindo.`
+            : `Não tem nada marcado no calendário em ${d.mes}.`,
         itens: lista.slice(0, 8).map((e) => ({
           rotulo: `${e.dia} ${(e.mes || "").split(" ")[0]}`.trim(),
           valor: e.evento,

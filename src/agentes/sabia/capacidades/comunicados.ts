@@ -20,7 +20,10 @@ export default defineCapacidade({
   intencao: "avisos",
   descricao:
     "os avisos e comunicados que a escola mandou no ClassApp. A data que aparece " +
-    "é quando a escola ENVIOU a mensagem, nunca um prazo: não invente prazos.",
+    "é quando a escola ENVIOU a mensagem, nunca um prazo: não invente prazos. " +
+    'Dos avisos você só tem o TÍTULO (às vezes cortado com "..."); só o mais recente vem ' +
+    'com o texto inteiro, em "conteudoDoMaisRecente". Nunca resuma nem complete o ' +
+    "conteúdo de um aviso que você só conhece pelo título.",
   entrada: z.object({
     limite: z
       .number().int().min(1).max(30).nullable()
