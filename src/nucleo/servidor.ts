@@ -122,7 +122,7 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
       saudacao: pacote.saudacao(lerConfig),
       contexto: pacote.contexto(lerConfig),
       aviso: pacote.aviso,
-      sugestoes: pacote.sugestoes,
+      atalhos: pacote.atalhos,
       capacidades: registro.capacidades.map((c) => registro.metadados(c.nome)),
       marca: {
         mascote: url(pacote.marca.mascote),

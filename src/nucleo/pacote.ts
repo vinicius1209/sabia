@@ -26,6 +26,19 @@ export interface CampoDeConfig {
   exemplo?: string;
 }
 
+/**
+ * Um cartão do painel inicial. Clicar faz a pergunta na hora.
+ * `icone` é um nome da lista que a tela conhece (ver ICONES_DE_ATALHO na
+ * web); nome desconhecido cai num ícone genérico, não quebra.
+ */
+export interface Atalho {
+  titulo: string;
+  descricao: string;
+  pergunta: string;
+  icone: string;
+  cor: "azul" | "laranja" | "verde" | "roxo" | "ambar" | "rosa";
+}
+
 /** Os estados do mascote. A tela troca a pose conforme o que o agente faz. */
 export type EstadoDoAgente = "ocioso" | "pensando" | "buscando" | "aguardando" | "pronto" | "erro";
 
@@ -40,7 +53,8 @@ export interface PacoteDeAgente {
   saudacao(cfg: LerConfig): string;
   /** a linha de contexto da barra lateral ("Colégio X · Ana") */
   contexto(cfg: LerConfig): string;
-  sugestoes: { icone: string; texto: string }[];
+  /** os cartões do painel inicial */
+  atalhos: Atalho[];
   /** rodapé fixo da tela ("dados reais, apenas leitura") */
   aviso: string;
   capacidades: readonly Capacidade[];

@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { LockIcon } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import {
@@ -12,12 +11,11 @@ import type { Sabia } from "@/hooks/use-sabia"
 import type { EstadoDoServidor, InfoDoAgente } from "@/lib/tipos"
 import { Composer } from "./composer"
 import { Turno } from "./turno"
-import { Vazio } from "./vazio"
+import { Painel } from "./painel"
 
 export function Chat({ sabia, info, estado }: { sabia: Sabia; info: InfoDoAgente; estado: EstadoDoServidor }) {
   const { aberta } = sabia
   const vazia = aberta.turnos.length === 0
-  const [rascunho, setRascunho] = useState<{ texto: string; n: number }>()
 
   const composer = (
     <Composer
@@ -27,7 +25,6 @@ export function Chat({ sabia, info, estado }: { sabia: Sabia; info: InfoDoAgente
       aoEnviar={(t) => void sabia.enviar(t)}
       aoParar={() => void sabia.parar()}
       aoEscolherMotor={(id, modelo) => void sabia.escolherMotor(id, modelo)}
-      rascunho={rascunho}
     />
   )
 
@@ -43,9 +40,9 @@ export function Chat({ sabia, info, estado }: { sabia: Sabia; info: InfoDoAgente
       </header>
 
       {vazia ? (
-        <Vazio info={info} aoSugerir={(texto) => setRascunho((r) => ({ texto, n: (r?.n ?? 0) + 1 }))}>
+        <Painel info={info} aoPerguntar={(p) => void sabia.enviar(p)}>
           {composer}
-        </Vazio>
+        </Painel>
       ) : (
         <>
           <MessageScrollerProvider autoScroll>

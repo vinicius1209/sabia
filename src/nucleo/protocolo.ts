@@ -1,5 +1,5 @@
 import type { ItemResposta } from "./capacidade.ts";
-import type { CampoDeConfig, EstadoDoAgente } from "./pacote.ts";
+import type { Atalho, CampoDeConfig, EstadoDoAgente } from "./pacote.ts";
 
 /* ==================================================================
  * O PROTOCOLO entre o servidor e qualquer tela.
@@ -67,7 +67,7 @@ export interface InfoDoAgente {
   saudacao: string;
   contexto: string;
   aviso: string;
-  sugestoes: { icone: string; texto: string }[];
+  atalhos: Atalho[];
   capacidades: MetaFerramenta[];
   marca: { mascote: string; poses: Record<EstadoDoAgente, string> };
 }

@@ -13,8 +13,11 @@ import type { EstadoDoMascote } from "@/components/mascote/tipos"
 export function MascoteSabia({ estado, className }: { estado: EstadoDoMascote; className?: string }) {
   return (
     <svg
-      viewBox="0 0 120 120"
-      className={cn("sabia overflow-visible", className)}
+      // Folga de 14 em cima: no pulo a cabeça sobe 12, e as bolhas de pensamento
+      // vão até y = -1. "Vazar" para fora do quadro não serve: os itens da
+      // conversa usam content-visibility, que corta tudo o que passa da caixa.
+      viewBox="-2 -14 128 128"
+      className={cn("sabia", className)}
       data-estado={estado}
       aria-hidden
     >

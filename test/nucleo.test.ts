@@ -59,7 +59,7 @@ const pacoteClima = definirAgente({
   persona: () => "Voce diz o tempo.",
   saudacao: () => "Oi!",
   contexto: (cfg) => cfg("CIDADE"),
-  sugestoes: [{ icone: "☀️", texto: "Vai chover?" }],
+  atalhos: [{ titulo: "Chuva", descricao: "A previsão de hoje", pergunta: "Vai chover?", icone: "nuvem", cor: "azul" }],
   aviso: "Previsão de brinquedo.",
   capacidades: [clima],
   campos: [{ chave: "CIDADE", rotulo: "Cidade", tipo: "texto", obrigatorio: true, grupo: "Onde" }],

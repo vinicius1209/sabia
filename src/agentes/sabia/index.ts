@@ -49,12 +49,14 @@ Voce nunca envia mensagem para professor.`,
 
   contexto: (cfg) => [cfg("ESCOLA_NOME"), cfg("ALUNO_NOME")].filter((s) => s.trim()).join(" · "),
 
-  sugestoes: [
-    { icone: "📊", texto: "Como estou no boletim?" },
-    { icone: "📅", texto: "Quando é minha próxima prova?" },
-    { icone: "🕐", texto: "Que aula eu tenho amanhã?" },
-    { icone: "📒", texto: "Teve tarefa hoje?" },
-    { icone: "📣", texto: "Quais os avisos da escola?" },
+  // os cartões do painel inicial, no desenho do cartaz da Exposalê
+  atalhos: [
+    { titulo: "Minhas notas", descricao: "Médias e faltas do boletim", pergunta: "Como estou no boletim?", icone: "notas", cor: "azul" },
+    { titulo: "Próxima prova", descricao: "O calendário de avaliações", pergunta: "Quando é minha próxima prova?", icone: "prova", cor: "laranja" },
+    { titulo: "Aulas de amanhã", descricao: "A grade do dia seguinte", pergunta: "Que aula eu tenho amanhã?", icone: "horario", cor: "roxo" },
+    { titulo: "Tarefas de hoje", descricao: "O que foi passado em aula", pergunta: "Teve tarefa hoje?", icone: "tarefa", cor: "verde" },
+    { titulo: "Avisos da escola", descricao: "Os comunicados do ClassApp", pergunta: "Quais os avisos da escola?", icone: "aviso", cor: "ambar" },
+    { titulo: "Onde melhorar", descricao: "O Sabiá compara as suas médias", pergunta: "Tem alguma matéria que eu preciso me preocupar?", icone: "atencao", cor: "rosa" },
   ],
 
   aviso: "Dados reais, somente leitura. Nada é enviado nem alterado.",

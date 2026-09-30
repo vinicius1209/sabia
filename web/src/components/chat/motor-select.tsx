@@ -55,15 +55,15 @@ export function MotorSelect({
       <SelectTrigger
         size="sm"
         aria-label="Motor de IA"
-        className="h-7 rounded-full border-transparent bg-transparent px-2 text-sm font-medium text-muted-foreground shadow-none transition-[background-color,color] hover:bg-muted hover:text-foreground aria-expanded:bg-muted dark:bg-transparent dark:hover:bg-muted"
+        className="h-7 min-w-0 max-w-full rounded-full border-transparent bg-transparent px-2 text-sm font-medium text-muted-foreground shadow-none transition-[background-color,color] hover:bg-muted hover:text-foreground aria-expanded:bg-muted dark:bg-transparent dark:hover:bg-muted"
       >
         <SelectValue>
-          <span className="flex items-center gap-1.5">
-            <CpuIcon className="size-3.5" />
-            {estado.motor.automatico && <span>Automático ·</span>}
-            <span>{atual?.nome ?? estado.motor.id}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <CpuIcon className="size-3.5 shrink-0" />
+            {estado.motor.automatico && <span className="hidden shrink-0 sm:inline">Automático ·</span>}
+            <span className="truncate">{atual?.nome ?? estado.motor.id}</span>
             {modeloAtual && modeloAtual.id && atual && atual.modelos.length > 1 && (
-              <span className="text-muted-foreground/70">{modeloAtual.nome}</span>
+              <span className="hidden shrink-0 text-muted-foreground/70 sm:inline">{modeloAtual.nome}</span>
             )}
           </span>
         </SelectValue>
