@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react"
+import { Mascote } from "@/components/mascote"
 import { Button } from "@/components/ui/button"
 import type { EstadoDoServidor, InfoDoAgente } from "@/lib/tipos"
 import { cn } from "@/lib/utils"
@@ -35,7 +36,7 @@ export function PrimeiroUso({
     <div className="flex min-h-svh items-start justify-center overflow-y-auto px-4 py-10 sm:items-center">
       <div className="flex w-full max-w-xl flex-col gap-7">
         <div className="flex items-center gap-4">
-          <img src={info.marca.mascote} alt="" className="size-16 animate-flutua object-contain" />
+          <Mascote info={info} estado="ocioso" className="size-16 shrink-0" />
           <div>
             <h1 className="text-2xl font-semibold tracking-[-0.02em]">Vamos ligar o {info.nome}</h1>
             <p className="text-[15px] text-muted-foreground">{info.descricao}</p>

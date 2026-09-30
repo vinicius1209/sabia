@@ -165,6 +165,11 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
 
   app.post("/api/motor", async (req: Request, res: Response) => {
     const id = String(req.body?.id ?? "");
+    // "auto": volta a escolher sozinho a primeira assinatura instalada
+    if (id === "auto") {
+      salvarConfig({ LLM_PROVIDER: "auto" });
+      return res.json(await estado());
+    }
     const opcao = CATALOGO.find((m) => m.id === id);
     if (!opcao) return res.status(400).json({ erro: "motor desconhecido" });
     const modelo = String(req.body?.modelo ?? opcao.modelos[0].id);

@@ -1,3 +1,4 @@
+import { Mascote } from "@/components/mascote"
 import { Button } from "@/components/ui/button"
 import type { InfoDoAgente } from "@/lib/tipos"
 
@@ -21,7 +22,7 @@ export function Vazio({
   return (
     <div className="flex grow flex-col items-center justify-center px-4 pb-16">
       <div className="flex w-full max-w-2xl animate-in flex-col items-center gap-7 fade-in slide-in-from-bottom-2 duration-300">
-        <img src={info.marca.mascote} alt="" className="size-28 animate-flutua object-contain drop-shadow-sm" />
+        <Mascote info={info} estado="ocioso" className="size-32" />
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-3xl font-semibold tracking-[-0.02em] text-balance">{titulo}</h1>
           {subtitulo && <p className="max-w-lg text-[15px]/6 text-balance text-muted-foreground">{subtitulo}</p>}

@@ -135,7 +135,7 @@ responder a pergunta de segurança antes de ela ser feita. Se ninguém digitar e
 | problema | solução |
 |---|---|
 | internet ruim para a IA | no seletor da caixa de pergunta, troque para **Sem IA** · continua lendo os sistemas de verdade |
-| a chave da OpenAI falhou | troque para **Claude pela assinatura** no mesmo seletor |
+| o Claude falhou ou está lento | troque para **OpenAI** (a mais rápida, usa a chave) ou **Antigravity** no mesmo seletor |
 | sem internet nenhuma | `offline/index.html` · simulação com dados fictícios |
 | o 2FA não chega | siga pelos slides 6 a 14 e volte à demo depois |
 | ele erra uma pergunta | "boa, anota aí, é assim que eu acho bug" |

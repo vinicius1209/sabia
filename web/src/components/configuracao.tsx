@@ -10,9 +10,9 @@ import type { CampoPreenchido, EstadoDoServidor, OpcaoDeMotor } from "@/lib/tipo
 import { cn } from "@/lib/utils"
 
 const REQUER: Record<OpcaoDeMotor["requer"], string> = {
-  chave: "Chave de API",
-  assinatura: "Assinatura",
-  nada: "Sem internet de IA",
+  chave: "Gasta com chave",
+  assinatura: "Sua assinatura",
+  nada: "Sem IA",
 }
 
 /* -------------------------------- motor -------------------------------- */
@@ -33,10 +33,10 @@ export function EscolhaDoMotor({
   const [teste, setTeste] = useState<{ ok: boolean; texto: string } | null>(null)
   const atual = estado.motores.find((m) => m.id === estado.motor.id)
 
-  const escolher = async (m: OpcaoDeMotor) => {
+  const escolher = async (id: string, modelo = "") => {
     setTeste(null)
     setChave("")
-    aoMudar(await api.escolherMotor(m.id, m.modelos[0].id))
+    aoMudar(await api.escolherMotor(id, modelo))
   }
 
   const salvarChave = async () => {
@@ -61,15 +61,43 @@ export function EscolhaDoMotor({
   return (
     <div className="flex flex-col gap-4">
       <div role="radiogroup" aria-label="Motor de IA" className="flex flex-col gap-2">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={estado.motor.automatico}
+          onClick={() => void escolher("auto")}
+          className={cn(
+            "flex items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+            estado.motor.automatico ? "border-primary bg-primary/6" : "border-border hover:bg-muted/60"
+          )}
+        >
+          {estado.motor.automatico ? (
+            <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+          ) : (
+            <CircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" />
+          )}
+          <span className="flex min-w-0 grow flex-col gap-0.5">
+            <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+              Automático
+              <span className="rounded-[4px] border border-primary/40 bg-primary/10 px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.05em] text-primary">
+                recomendado
+              </span>
+            </span>
+            <span className="text-[13px] text-muted-foreground">
+              Usa a primeira assinatura desta máquina (Claude, Antigravity ou Codex), sem gastar com chave.
+              {estado.motor.automatico && ` Agora: ${estado.motores.find((m) => m.id === estado.motor.id)?.nome}.`}
+            </span>
+          </span>
+        </button>
         {estado.motores.map((m) => {
-          const escolhido = m.id === estado.motor.id
+          const escolhido = !estado.motor.automatico && m.id === estado.motor.id
           return (
             <button
               key={m.id}
               type="button"
               role="radio"
               aria-checked={escolhido}
-              onClick={() => void escolher(m)}
+              onClick={() => void escolher(m.id, m.modelos[0].id)}
               className={cn(
                 "flex items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                 escolhido ? "border-primary bg-primary/6" : "border-border hover:bg-muted/60"
@@ -99,7 +127,7 @@ export function EscolhaDoMotor({
         })}
       </div>
 
-      {atual?.requer === "chave" && (
+      {atual?.requer === "chave" && !estado.motor.automatico && (
         <Field>
           <FieldLabel htmlFor="chave">Chave de API {atual.nome === "OpenAI" ? "da OpenAI" : `do ${atual.nome}`}</FieldLabel>
           <div className="flex gap-2">

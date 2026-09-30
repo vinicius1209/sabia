@@ -136,6 +136,48 @@ describe("config no home", () => {
   });
 });
 
+/* ------------------------- motor automático ------------------------- */
+
+describe("motor automatico (o padrao: assinatura antes de chave)", () => {
+  const comEnv = (vars: Record<string, string | undefined>, fn: () => void) => {
+    const antes = { ...process.env };
+    Object.assign(process.env, vars);
+    for (const [k, v] of Object.entries(vars)) if (v === undefined) delete process.env[k];
+    try {
+      fn();
+    } finally {
+      process.env = antes;
+    }
+  };
+  const so = (...clis: string[]) => (c: string) => clis.includes(c);
+
+  test("pega a primeira assinatura instalada, na ordem do catalogo", () => {
+    comEnv({ LLM_PROVIDER: "auto", OPENAI_API_KEY: "sk-x" }, () => {
+      assert.deepEqual(motorEscolhido(so("claude", "codex")), { id: "claude", modelo: "sonnet", automatico: true });
+      assert.equal(motorEscolhido(so("codex")).id, "codex");
+      assert.equal(motorEscolhido(so("agy", "codex")).id, "agy");
+    });
+  });
+
+  test("sem assinatura nenhuma, usa a chave que existir", () => {
+    comEnv({ LLM_PROVIDER: undefined, OPENAI_API_KEY: "sk-x" }, () => {
+      assert.equal(motorEscolhido(so()).id, "openai");
+    });
+  });
+
+  test("sem assinatura e sem chave, cai no plano B em vez de quebrar", () => {
+    comEnv({ LLM_PROVIDER: "auto", OPENAI_API_KEY: undefined, GEMINI_API_KEY: undefined }, () => {
+      assert.equal(motorEscolhido(so()).id, "local");
+    });
+  });
+
+  test("escolha explicita vale mesmo com assinatura instalada", () => {
+    comEnv({ LLM_PROVIDER: "openai", OPENAI_MODEL: "gpt-4.1-mini" }, () => {
+      assert.deepEqual(motorEscolhido(so("claude")), { id: "openai", modelo: "gpt-4.1-mini", automatico: false });
+    });
+  });
+});
+
 /* ----------------------------- conversas ---------------------------- */
 
 describe("conversas salvas", () => {

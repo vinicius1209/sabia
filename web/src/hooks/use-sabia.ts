@@ -13,7 +13,11 @@ export interface ConversaAberta {
 const VAZIA: ConversaAberta = { id: "", titulo: "", turnos: [] }
 
 /** o id da conversa aberta fica na URL (#id): recarregar a página não perde o lugar */
-const idDaUrl = () => window.location.hash.slice(1)
+const idDaUrl = () => {
+  const h = window.location.hash.slice(1)
+  // só id de conversa de verdade (UUID); #mascotes e afins não são conversa
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(h) ? h : ""
+}
 
 export function useSabia() {
   const [info, setInfo] = useState<InfoDoAgente | null>(null)

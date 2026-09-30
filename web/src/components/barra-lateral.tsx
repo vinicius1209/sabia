@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { EllipsisIcon, MoonIcon, PencilIcon, PlusIcon, Settings2Icon, SunIcon, Trash2Icon } from "lucide-react"
+import { Mascote } from "@/components/mascote"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -70,7 +71,7 @@ export function BarraLateral({
     <Sidebar collapsible="offcanvas" className="border-sidebar-border">
       <SidebarHeader className="gap-3 px-3 pt-3 pb-1">
         <div className="flex items-center gap-2.5 px-1">
-          <img src={info.marca.poses.ocioso} alt="" className="size-8 object-contain" />
+          <Mascote info={info} estado={sabia.emAndamento ? "pensando" : "ocioso"} className="size-9 shrink-0" />
           <div className="flex min-w-0 flex-col">
             <span className="text-[15px] font-semibold leading-tight">{info.nome}</span>
             {info.contexto && (

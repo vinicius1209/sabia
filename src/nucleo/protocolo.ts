@@ -97,7 +97,8 @@ export interface EstadoDoServidor {
   /** todos os campos obrigatórios preenchidos e um motor utilizável */
   configurado: boolean;
   faltando: string[];
-  motor: { id: string; modelo: string; nome: string };
+  /** automatico: a pessoa não escolheu; o Sabiá pegou a primeira assinatura instalada */
+  motor: { id: string; modelo: string; nome: string; automatico: boolean };
   motores: OpcaoDeMotor[];
   ocupado: boolean;
 }

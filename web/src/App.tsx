@@ -3,6 +3,7 @@ import { LoaderIcon } from "lucide-react"
 import { Ajustes } from "@/components/ajustes"
 import { BarraLateral } from "@/components/barra-lateral"
 import { Chat } from "@/components/chat/chat"
+import { GaleriaDoMascote } from "@/components/mascote/galeria"
 import { PrimeiroUso } from "@/components/primeiro-uso"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
@@ -42,6 +43,9 @@ export default function App() {
       </div>
     )
   }
+
+  // a galeria dos estados do mascote, para conferir a animação
+  if (window.location.hash === "#mascotes") return <GaleriaDoMascote info={info} />
 
   if (guiando) {
     return (

@@ -1,4 +1,5 @@
-import type { EstadoDoAgente, EventoDoTurno, ItemResposta, MetaFerramenta, Turno } from "./tipos"
+import type { EstadoDoMascote } from "@/components/mascote/tipos"
+import type { EventoDoTurno, ItemResposta, MetaFerramenta, Turno } from "./tipos"
 
 /** Um turno na tela: o que foi salvo, mais o que só existe ao vivo. */
 export interface TurnoVivo {
@@ -28,7 +29,7 @@ export type LinhaDaTrilha =
   | { tipo: "ferramenta"; ferramenta: FerramentaNoTurno }
 
 export interface VistaDoTurno {
-  estado: EstadoDoAgente
+  estado: EstadoDoMascote
   trilha: LinhaDaTrilha[]
   ferramentas: FerramentaNoTurno[]
   /** a última linha de progresso, para o "Lendo as notas…" ao vivo */
@@ -107,7 +108,7 @@ export function vistaDo(t: TurnoVivo): VistaDoTurno {
   }
 
   const buscando = ferramentas.some((f) => f.emAndamento)
-  const estado: EstadoDoAgente = erro
+  const estado: EstadoDoMascote = erro
     ? "erro"
     : t.esperandoCodigo
       ? "aguardando"
@@ -115,9 +116,11 @@ export function vistaDo(t: TurnoVivo): VistaDoTurno {
         ? "pronto"
         : buscando
           ? "buscando"
-          : t.ativo
-            ? "pensando"
-            : "ocioso"
+          : t.ativo && t.parcial
+            ? "escrevendo"
+            : t.ativo
+              ? "pensando"
+              : "ocioso"
 
   return {
     estado,

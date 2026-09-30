@@ -73,18 +73,21 @@ errou nela. A história está em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ## Qual IA responde
 
-Escolha na tela, a qualquer hora, pelo seletor da caixa de pergunta.
+**O padrão é o Automático: nenhuma chave de API, nenhum gasto extra.** Ele usa a
+primeira CLI de IA logada na máquina (as mesmas que o Frota usa), nesta ordem:
 
-| motor | precisa de | acertos* |
-|---|---|---|
-| OpenAI (gpt-6-luna, gpt-4.1-mini) | chave de API | 7/7 e 6/7 |
-| Claude pela assinatura | Claude Code logado na máquina | 6/7 |
-| Codex pela assinatura | Codex logado na máquina (lento para ao vivo) | 7/7 |
-| Gemini | chave de API | não medido |
-| Sem IA | nada: regras de palavra-chave, ainda lendo os dados reais | plano B |
+| motor | precisa de | acertos* | por chamada |
+|---|---|---|---|
+| Claude pela assinatura | Claude Code logado | 5 a 6/7 | ~3,5 s, texto aparece enquanto é escrito |
+| Antigravity pela assinatura | `agy` logado (Gemini) | 7/7 | ~8 a 14 s |
+| Codex pela assinatura | Codex logado | 7/7 | ~9 s |
+| OpenAI (gpt-6-luna, gpt-4.1-mini) | chave de API, gasta | 7/7 e 6/7 | ~2,5 s e ~1,4 s |
+| Gemini | chave de API, gasta | não medido | |
+| Sem IA | nada: regras de palavra-chave, ainda lendo os dados reais | plano B | instantâneo |
 
-\* os casos do `npm run bench`. Os motores por assinatura usam o login que você
-já tem no Claude Code ou no Codex, sem chave de API.
+\* os casos do `npm run bench`. Sem assinatura nenhuma, o Automático usa uma
+chave se houver, e por último o Sem IA. Dá para fixar qualquer um pelo seletor
+da caixa de pergunta, a qualquer hora.
 
 ## Um núcleo, um pacote
 
@@ -126,7 +129,7 @@ prazo, ele desiste e avisa. Nada é contornado.
 npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
 npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
 npm run check      # tipos do servidor e da tela
-npm test           # 96 testes, sem rede e sem navegador, menos de 1s
+npm test           # 100 testes, sem rede e sem navegador, menos de 1s
 npm run test:real  # as 5 capacidades contra os sistemas reais
 npm run bench      # compara motores no trabalho real do agente
 ```

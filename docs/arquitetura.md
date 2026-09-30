@@ -81,20 +81,36 @@ Qualquer motor serve, desde que devolva o formato validado.
 
 | motor | como | acertos* | tempo por chamada |
 |---|---|---|---|
+| Claude Sonnet | **assinatura**, `claude -p --json-schema` | 5 a 6/7 | ~3,5 s, transmite |
+| Claude Haiku | **assinatura**, `claude -p --json-schema` | 6/7 | ~5 s |
+| Antigravity (Gemini 3.8 Flash low) | **assinatura**, `agy -p --json-schema` | 7/7 | ~8 a 14 s |
+| Codex | **assinatura**, `codex exec --output-schema` | 7/7 | ~9 s |
 | OpenAI gpt-6-luna | API, structured outputs | 7/7 | ~2,5 s |
 | OpenAI gpt-4.1-mini | API, structured outputs | 6/7 | ~1,4 s |
-| Claude Sonnet | **assinatura**, `claude -p --json-schema` | 6/7 | ~3,5 s |
-| Claude Haiku | **assinatura**, `claude -p --json-schema` | 6/7 | ~5 s |
-| Codex | **assinatura**, `codex exec --output-schema` | 7/7 | ~9 s |
 | Gemini | API, `responseJsonSchema` | não medido | |
 | Sem IA | regras de palavra-chave | plano B | instantâneo |
 
-\* os 7 casos do `npm run bench`, set/2026.
+\* os 7 casos do `npm run bench`, set/2026. Os erros do Claude são consultar
+uma fonte a mais, não responder errado. O Flash "medium" do agy ficou de fora:
+pensou até estourar 2 min e devolveu o plano fora do formato.
 
-Os motores por assinatura usam o Claude Code ou o Codex logados na máquina, sem
-chave de API. Cada chamada roda numa pasta vazia, sem ferramentas e sem MCP:
-senão a CLI carregaria o `CLAUDE.md` de quem estiver por perto e viraria um
-agente de código dentro do nosso agente.
+**O padrão é o Automático** (`LLM_PROVIDER` vazio ou `auto`): a primeira CLI por
+assinatura instalada, na ordem da tabela; sem nenhuma, uma chave de API que
+exista; sem chave, o Sem IA. Ninguém gasta com chave sem ter escolhido gastar.
+
+Os motores por assinatura usam as mesmas CLIs que o Frota orquestra (claude,
+codex, agy), logadas na máquina. Cada chamada roda numa pasta vazia, sem
+ferramentas e sem MCP: senão a CLI carregaria o `CLAUDE.md` de quem estiver por
+perto e viraria um agente de código dentro do nosso agente. As armadilhas do
+`agy` vieram do adaptador do Frota, que já apanhou delas: sem
+`--dangerously-skip-permissions` o modo `-p` trava esperando aprovação, ele tem
+teto de tempo próprio (`--print-timeout`), e o `response` mistura narração com
+resposta (só o `structured_output` vale).
+
+Só o Claude transmite a resposta aos pedaços: no `stream-json`, a saída
+estruturada chega como chamada à ferramenta `StructuredOutput`, e os
+`input_json_delta` dela são o JSON sendo escrito. O `agy` e o Codex entregam o
+JSON inteiro no fim.
 
 Dois achados dessa integração:
 - O filtro de segurança do Claude às vezes **recusava** o plano, e o detalhe
@@ -143,8 +159,12 @@ login nem 2FA.
 os blocos de chat do [blocks.so](https://github.com/ephraimduncan/blocks)
 (`chat-03` para a conversa e a barra lateral, `ai-02` para o seletor de motor).
 
-- **O mascote é o indicador de estado**: pensando, buscando, esperando o código,
-  pronto, confuso. É o que o slide 4 da apresentação ensina a ler.
+- **O mascote é o indicador de estado**, e é um desenho em SVG com as partes
+  separadas (`web/src/agentes/sabia/mascote.tsx`): respira e pisca parado,
+  inclina a cabeça pensando, pula e bica buscando, abre o bico escrevendo, bate
+  as asas quando responde, se chacoalha no erro. Fundo transparente. A galeria
+  de estados fica em `/#mascotes`. Pacote sem mascote animado usa as poses PNG
+  da marca.
 - **A trilha recolhe** no fim ("Trabalhou por 27s · 1 fonte") e abre com cada
   passo, agrupado sob a ferramenta que o deu.
 - **Cada capacidade tem um cartão próprio** (tabela de notas, linha do tempo de

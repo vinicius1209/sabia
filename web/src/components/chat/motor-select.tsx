@@ -12,9 +12,9 @@ import {
 import type { EstadoDoServidor, OpcaoDeMotor } from "@/lib/tipos"
 
 const SELO: Record<OpcaoDeMotor["requer"], string> = {
-  chave: "API",
+  chave: "CHAVE",
   assinatura: "ASSINATURA",
-  nada: "OFFLINE",
+  nada: "SEM IA",
 }
 
 function Selo({ requer }: { requer: OpcaoDeMotor["requer"] }) {
@@ -38,7 +38,7 @@ export function MotorSelect({
   aoEscolher: (id: string, modelo: string) => void
   desabilitado?: boolean
 }) {
-  const valor = `${estado.motor.id}::${estado.motor.modelo}`
+  const valor = estado.motor.automatico ? "auto::" : `${estado.motor.id}::${estado.motor.modelo}`
   const atual = estado.motores.find((m) => m.id === estado.motor.id)
   const modeloAtual = atual?.modelos.find((m) => m.id === estado.motor.modelo)
 
@@ -60,6 +60,7 @@ export function MotorSelect({
         <SelectValue>
           <span className="flex items-center gap-1.5">
             <CpuIcon className="size-3.5" />
+            {estado.motor.automatico && <span>Automático ·</span>}
             <span>{atual?.nome ?? estado.motor.id}</span>
             {modeloAtual && modeloAtual.id && atual && atual.modelos.length > 1 && (
               <span className="text-muted-foreground/70">{modeloAtual.nome}</span>
@@ -68,9 +69,17 @@ export function MotorSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="start" alignItemWithTrigger={false} side="top" sideOffset={8} className="w-80 p-1">
-        {estado.motores.map((m, i) => (
+        <SelectItem value="auto::" className="rounded-md py-1.5">
+          <span className="flex flex-col gap-0.5">
+            <span className="font-medium">Automático</span>
+            <span className="text-xs text-muted-foreground">
+              A primeira assinatura desta máquina, sem gastar com chave. Agora: {atual?.nome}.
+            </span>
+          </span>
+        </SelectItem>
+        {estado.motores.map((m) => (
           <SelectGroup key={m.id}>
-            {i > 0 && <SelectSeparator />}
+            <SelectSeparator />
             <SelectLabel className="flex items-center gap-1.5 px-1.5 pt-1.5 text-xs">
               {m.nome}
               <Selo requer={m.requer} />

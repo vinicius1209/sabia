@@ -57,10 +57,10 @@ async function iniciar() {
     pastaClassica: path.join(raiz, "ui"),
   });
 
-  app.listen(PORT, HOST, () => {
+  const servidor = app.listen(PORT, HOST, () => {
     const url = `http://localhost:${PORT}`;
     console.log(`\n  ${pacote.nome} rodando em  ${url}`);
-    console.log(`  Motor: ${motor().nome}`);
+    console.log(`  Motor: ${motor().nome}${motorEscolhido().automatico ? " (escolhido no automático)" : ""}`);
     console.log(`  Dados locais em ${home()}`);
     if (importouDotEnv) console.log("  (importei o .env do projeto para lá)");
     if (migrouNavegador) console.log("  (copiei a sessão do navegador para lá, sem precisar de 2FA de novo)");
@@ -72,10 +72,22 @@ async function iniciar() {
     if (process.env.SABIA_ABRIR !== "0" && !process.env.CI) abrirNavegador(url);
   });
 
-  process.on("SIGINT", async () => {
-    await encerrar();
-    process.exit(0);
+  servidor.on("error", (e: NodeJS.ErrnoException) => {
+    if (e.code !== "EADDRINUSE") throw e;
+    console.log(`\n  A porta ${PORT} já está em uso: provavelmente outro ${pacote.nome} está rodando.`);
+    console.log(`  Feche o outro, ou suba em outra porta: PORT=${PORT + 1} npm start\n`);
+    process.exit(1);
   });
+
+  // SIGTERM também: é o que o Frota e os gerenciadores de processo mandam.
+  // Só com SIGINT, o tratador de SIGTERM do Playwright fechava o navegador e
+  // o servidor seguia vivo, segurando a porta.
+  const sair = async () => {
+    await encerrar().catch(() => {});
+    process.exit(0);
+  };
+  process.on("SIGINT", sair);
+  process.on("SIGTERM", sair);
 }
 
 function abrirNavegador(url: string) {

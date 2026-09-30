@@ -1,13 +1,13 @@
 import { useState } from "react"
 import { AlertCircleIcon, CheckIcon, ChevronRightIcon, CopyIcon, PaperclipIcon, RotateCcwIcon } from "lucide-react"
 import { CartaoDaFerramenta } from "@/components/artefatos"
+import { Mascote } from "@/components/mascote"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { MessageScrollerItem } from "@/components/ui/message-scroller"
 import type { InfoDoAgente } from "@/lib/tipos"
 import { vistaDo, type TurnoVivo } from "@/lib/turno"
 import { cn } from "@/lib/utils"
-import { AvatarDoAgente } from "./avatar-do-agente"
 import { Codigo2FA } from "./codigo-2fa"
 import { Destaques } from "./destaques"
 import { Markdown } from "./markdown"
@@ -37,7 +37,7 @@ export function Turno({
       </MessageScrollerItem>
 
       <MessageScrollerItem messageId={`${turno.id}-r`} className={cn("flex gap-3.5", entra)}>
-        <AvatarDoAgente info={info} estado={vista.estado} className="mt-0.5" />
+        <Mascote info={info} estado={vista.estado} className="-mt-2 -ml-1 size-12 shrink-0" />
         <div className="flex min-w-0 grow flex-col gap-3">
           <Trilha turno={turno} vista={vista} />
 
