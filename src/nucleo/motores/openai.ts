@@ -33,10 +33,10 @@ export function motorOpenAI({ sistema, registro }: DepsDoMotor, modelo: string):
       response_format: zodResponseFormat(schema as never, nomeSchema),
     };
     if (!aoEscrever) {
-      const r = await c.chat.completions.create(corpo);
+      const r = await c.chat.completions.create(corpo, { signal: entrada.sinal });
       return schema.parse(JSON.parse(r.choices[0].message.content ?? "{}"));
     }
-    const fluxo = await c.chat.completions.create({ ...corpo, stream: true });
+    const fluxo = await c.chat.completions.create({ ...corpo, stream: true }, { signal: entrada.sinal });
     let acumulado = "";
     let mostrado = "";
     for await (const pedaco of fluxo) {

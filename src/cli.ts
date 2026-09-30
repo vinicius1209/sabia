@@ -6,6 +6,7 @@
  *
  * SABIA_AGENTE escolhe o pacote em src/agentes/<id> (padrão: sabia).
  * SABIA_ABRIR=0 não abre o navegador sozinho.
+ * SABIA_AGORA=2026-09-26T10:00:00-03:00 congela o relógio (só para ensaio).
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -13,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { carregarConfig, home, lerConfig, migrarNavegador } from "./nucleo/config.ts";
 import net from "node:net";
+import { congelarRelogio } from "./nucleo/contexto.ts";
 import { conferirEstrutura, formasConhecidas, mudancas } from "./nucleo/estruturas.ts";
 import { disponibilidade, motorEscolhido } from "./nucleo/motores/index.ts";
 import { criarRegistro } from "./nucleo/registro.ts";
@@ -24,6 +26,7 @@ const pastaWeb = path.join(raiz, "web", "dist");
 
 const { importouDotEnv } = carregarConfig(raiz);
 const migrouNavegador = migrarNavegador(raiz);
+congelarRelogio(process.env.SABIA_AGORA);
 
 const idAgente = process.env.SABIA_AGENTE || "sabia";
 if (!/^[a-z0-9-]+$/.test(idAgente)) throw new Error(`SABIA_AGENTE inválido: ${idAgente}`);
@@ -67,6 +70,8 @@ async function iniciar() {
     console.log(`  Dados locais em ${home()}`);
     if (importouDotEnv) console.log("  (importei o .env do projeto para lá)");
     if (migrouNavegador) console.log("  (copiei a sessão do navegador para lá, sem precisar de 2FA de novo)");
+    // relógio congelado é para ensaio; no app de verdade, "já passou" ficaria errado
+    if (process.env.SABIA_AGORA) console.log(`  ATENÇÃO: relógio congelado em ${process.env.SABIA_AGORA} (SABIA_AGORA)`);
     console.log(
       HOST === "127.0.0.1"
         ? "  Acesso: só esta máquina (HOST=0.0.0.0 libera a rede)\n"
@@ -80,6 +85,12 @@ async function iniciar() {
     console.log(`\n  A porta ${PORT} já está em uso: provavelmente outro ${pacote.nome} está rodando.`);
     console.log(`  Feche o outro, ou suba em outra porta: PORT=${PORT + 1} npm start\n`);
     process.exit(1);
+  });
+
+  // Rede de segurança: um erro esquecido vira log, e não a demonstração caindo
+  // na frente da turma. (O Node derruba o processo em rejeição não tratada.)
+  process.on("unhandledRejection", (e) => {
+    console.error("  Erro não tratado (o Sabiá continua no ar):", e instanceof Error ? e.message : e);
   });
 
   // SIGTERM também: é o que o Frota e os gerenciadores de processo mandam.

@@ -28,6 +28,7 @@ export function motorGemini({ sistema, registro }: DepsDoMotor, modelo: string):
         systemInstruction: sistema(),
         responseMimeType: "application/json",
         responseJsonSchema: z.toJSONSchema(schema),
+        abortSignal: entrada.sinal,
       },
     };
     if (!aoEscrever) {

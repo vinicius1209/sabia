@@ -11,6 +11,8 @@ export interface Entrada {
   dados?: Record<string, unknown>;
   /** as trocas anteriores desta conversa; a memória decide o que cabe (ver memoria.ts) */
   historico?: Troca[];
+  /** "Parar": o motor cancela a chamada (mata a CLI, fecha a conexão) */
+  sinal?: AbortSignal;
 }
 
 /**

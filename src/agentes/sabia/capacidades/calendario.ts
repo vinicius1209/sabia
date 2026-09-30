@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defineCapacidade } from "../../../nucleo/capacidade.ts";
 import { getBrowser, getEntityId, navegarAutenticado } from "../browser.mjs";
 import { agora } from "../../../nucleo/contexto.ts";
+import { semAcento } from "../../../nucleo/texto.ts";
 
 const CLASSAPP = "https://classapp.com.br";
 
@@ -28,10 +29,42 @@ export const Saida = z.object({
 
 /* --------------------------- lógica pura --------------------------- */
 
-const MESES: Record<string, number> = {
-  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
-  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+/** O ClassApp escreve o mês no idioma do navegador. O Sabiá fixa o navegador
+ *  em inglês (browser.mjs), mas entende os dois: se um dia vier em português,
+ *  a leitura segue certa em vez de marcar todo evento sem data. */
+const MESES: Record<"en" | "pt", string[]> = {
+  en: ["january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december"],
+  pt: ["janeiro", "fevereiro", "marco", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"],
 };
+
+/**
+ * "September 2026", "Setembro 2026" ou "setembro de 2026" viram mês e ano.
+ * Qualquer outra coisa é null: quem chama trata como página não reconhecida,
+ * nunca como "sem eventos".
+ */
+export function lerMesAno(texto: string): { mes: number; ano: number; idioma: "en" | "pt"; titulo: string } | null {
+  const m = semAcento(texto).match(/^([a-z]+)(?: de)? (\d{4})$/);
+  if (!m) return null;
+  for (const idioma of ["en", "pt"] as const) {
+    const mes = MESES[idioma].indexOf(m[1]);
+    if (mes >= 0) {
+      const nome = texto.trim().split(/\s/)[0];
+      return { mes, ano: Number(m[2]), idioma, titulo: `${nome[0].toUpperCase()}${nome.slice(1)} ${m[2]}` };
+    }
+  }
+  return null;
+}
+
+/** O primeiro trecho da página que é um título de mês de verdade ("Updated 2026" não é). */
+export function acharTituloDoMes(candidatos: string[]) {
+  for (const c of candidatos) {
+    const r = lerMesAno(c);
+    if (r) return r;
+  }
+  return null;
+}
 
 export interface EventoBruto { mes: string; dia: number; evento: string }
 
@@ -52,10 +85,10 @@ export function marcarEventos(brutos: EventoBruto[], inicioDeHoje: Date) {
   return brutos
     .map((e) => {
       const tipo = { ehAvaliacao: AVALIACAO.test(e.evento), ehSegundaChamada: SEGUNDA_CHAMADA.test(e.evento) };
-      const [nomeMes, ano] = (e.mes || "").split(" ");
-      const mi = MESES[(nomeMes || "").toLowerCase()];
-      if (mi === undefined || !ano) return { ...e, data: "", passou: false, ...tipo };
-      const d = new Date(Number(ano), mi, e.dia);
+      const lido = lerMesAno(e.mes || "");
+      if (!lido) return { ...e, data: "", passou: false, ...tipo };
+      const { mes: mi, ano } = lido;
+      const d = new Date(ano, mi, e.dia);
       return {
         ...e,
         data: `${ano}-${String(mi + 1).padStart(2, "0")}-${String(e.dia).padStart(2, "0")}`,
@@ -98,8 +131,12 @@ export default defineCapacidade({
 
     const lerMes = () =>
       page.evaluate(() => {
-        const mes = document.body.innerText.match(/[A-Z][a-z]+ \d{4}/)?.[0] || "";
-        const eventos: { mes: string; dia: number; evento: string }[] = [];
+        // todo "Palavra AAAA" da página; quem decide qual é o mês é acharTituloDoMes
+        const titulos = Array.from(
+          document.body.innerText.matchAll(/[A-Za-zÀ-ÿ]+(?: de)? \d{4}/g),
+          (m) => m[0]
+        ).slice(0, 30);
+        const eventos: { dia: number; evento: string }[] = [];
         const celulas = document.querySelectorAll("td, [role='gridcell']");
         celulas.forEach((c) => {
           const txt = (c as HTMLElement).innerText.trim();
@@ -107,24 +144,31 @@ export default defineCapacidade({
           const linhas = txt.split("\n").map((s) => s.trim()).filter(Boolean);
           const dia = linhas[0];
           if (/^\d{1,2}$/.test(dia) && linhas.length > 1) {
-            linhas.slice(1).forEach((e) => eventos.push({ mes, dia: Number(dia), evento: e }));
+            linhas.slice(1).forEach((e) => eventos.push({ dia: Number(dia), evento: e }));
           }
         });
-        return { mes, eventos, celulas: celulas.length };
+        return { titulos, eventos, celulas: celulas.length };
+      }).then(({ titulos, eventos, celulas }) => {
+        const titulo = acharTituloDoMes(titulos);
+        const mes = titulo?.titulo ?? "";
+        return { mes, idioma: titulo?.idioma, celulas, eventos: eventos.map((e): EventoBruto => ({ mes, ...e })) };
       });
 
     const atual = await lerMes();
-    // Sem o título do mês ou sem as células, a resposta seria "nada marcado".
-    // É erro, não vazio.
+    // Sem um título de mês que dê para entender, ou sem as células, a resposta
+    // seria "nada marcado" (ou datas erradas). É erro, não vazio.
     if (!atual.mes || !atual.celulas) {
-      throw new Error("Não reconheci o calendário na página. Ela pode ter mudado de formato.");
+      throw new Error("Não reconheci o calendário na página. Ela pode ter mudado de formato ou de idioma.");
     }
-    // a forma, não os valores: "September 2026" vira "Mês AAAA"
-    estrutura?.(`titulo do mes: ${atual.mes.replace(/[A-Z][a-z]+/, "Mês").replace(/\d{4}/, "AAAA")}\ncelulas: td ou gridcell`);
+    // a forma, não os valores: "September 2026" vira "Mês AAAA". O idioma entra
+    // na forma, para uma troca de idioma aparecer como mudança.
+    estrutura?.(
+      `titulo do mes: Mês AAAA${atual.idioma === "pt" ? ", em português" : ""}\ncelulas: td ou gridcell`
+    );
 
     // Sem o mês seguinte, perto do fim do mês todas as provas já passaram
     // e não existe resposta possível para "qual a próxima prova".
-    let seguinte = { mes: "", eventos: [] as EventoBruto[], celulas: 0 };
+    let seguinte: { mes: string; eventos: EventoBruto[] } = { mes: "", eventos: [] };
     try {
       passo("Olhando o mês seguinte também");
       // as setas não são <button>: são div.arrow com <i class="arrow right icon">

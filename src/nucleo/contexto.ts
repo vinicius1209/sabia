@@ -21,8 +21,29 @@ export interface Agora {
   inicioDoDia: Date;
 }
 
+let congelado: Date | null = null;
+
+/**
+ * Congela o "agora" (ex.: "2026-09-26T10:00:00-03:00"), para o benchmark e os
+ * testes, que usam dados fictícios de uma data fixa: sem isso, o cabeçalho
+ * dizia a data real e os dados eram de outro dia, e o modelo "errava" por
+ * culpa do teste. Sem valor, volta ao relógio real. Valor inválido é erro,
+ * nunca a data real calada. (Na linha de comando: SABIA_AGORA, ver cli.ts.)
+ */
+export function congelarRelogio(quando?: string): void {
+  if (!quando) {
+    congelado = null;
+    return;
+  }
+  const d = new Date(quando);
+  if (Number.isNaN(d.getTime())) throw new Error(`Data inválida para o relógio: "${quando}" (use 2026-09-26T10:00:00-03:00)`);
+  congelado = d;
+}
+
+const relogio = (): Date => (congelado ? new Date(congelado) : new Date());
+
 export function agora(): Agora {
-  const d = new Date();
+  const d = relogio();
 
   // as partes no fuso da escola, nao no fuso da maquina
   const partes = new Intl.DateTimeFormat("en-CA", {

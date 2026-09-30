@@ -144,8 +144,9 @@ prazo, ele desiste e avisa. Nada é contornado.
 npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
 npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
 npm run check      # tipos do servidor e da tela
-npm test           # 134 testes, sem rede e sem navegador, menos de 1s
+npm test           # 144 testes, sem rede e sem navegador, ~2 s
 npm run test:real  # as 5 capacidades contra os sistemas reais
+npm run test:mascara  # a máscara do telão, num Chromium com páginas fictícias
 npm run bench      # compara motores no trabalho real do agente
 ```
 
@@ -154,11 +155,14 @@ puras e dados fictícios no formato real das telas:
 
 - qual coluna do boletim é a média (e não uma prova solta do outro semestre)
 - `passou` do calendário, e "evento de hoje não é passado"
-- hoje e amanhã na grade, sem depender do modelo
+- hoje e amanhã na grade, sem depender do modelo (numa sexta, amanhã é sábado, e não segunda)
+- o mês do calendário em inglês ou português, e mês desconhecido recusado
 - "Não houve" e "Sem tarefa." no diário não viram tarefa
 - contratos recusam ferramenta e intenção inventadas
-- o laço: argumentos chegam à ferramenta, a fonte vem do plano, parar no meio para
-- o núcleo com um agente de brinquedo, ponta a ponta pelo servidor
+- o laço: argumentos chegam à ferramenta, a fonte vem do plano, e **Parar** corta
+  a chamada ao modelo na hora (e mata a CLI)
+- o núcleo com um agente de brinquedo, ponta a ponta pelo servidor: apagar a
+  conversa que está respondendo, fechar a aba no meio do 2FA
 
 `npm run test:real` confere **invariantes**, não valores (nota muda, formato não).
 
@@ -169,9 +173,9 @@ para conferir que a suíte acusa:
 
 | sabotagem | resultado |
 |---|---|
-| a média vira o primeiro número da linha | 4 testes falham |
-| as faltas de um semestre no lugar das do ano | 1 teste falha |
-| inverter a lógica de "já passou" | 2 testes falham |
+| a média vira o primeiro número da linha | 6 testes falham |
+| as faltas de um semestre no lugar das do ano | 2 testes falham |
+| inverter a lógica de "já passou" | 4 testes falham |
 | tirar uma palavra do filtro de rodapé | **nenhum falhava** |
 
 A última linha achou um teste fraco: o caso de rodapé passava por causa do
@@ -209,6 +213,10 @@ o mesmo contrato: tela, prompt e cartões continuam iguais.
   Os testes usam dados fictícios no formato real.
 - **No telão, o mínimo.** Os dados lidos de cada fonte ficam recolhidos; o
   boletim inteiro só aparece se alguém abrir.
+- **O navegador borra quem é a aluna.** Nome, foto, matrícula, nascimento,
+  filiação e telefone aparecem borrados na janela do navegador; as notas não.
+  É só na tela: o Sabiá continua lendo tudo. E falha **fechada**: a página só
+  aparece depois que a máscara passou por ela. `MASCARA=0` desliga (em casa).
 
 ## Estrutura
 

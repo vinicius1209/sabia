@@ -66,8 +66,15 @@ Nathalia digita, Vinicius narra o navegador ao lado:
 Enquanto roda:
 > **"Repara que ele não tem resposta pronta. Ele está entrando no sistema agora."**
 
-O boletim leva uns 20 segundos. **Não fique em silêncio**, narre o que o avatar
-mostra: "tá pensando... agora entrou no portal... achou."
+Na feira o motor é o **Automático (Claude pela assinatura)**, e cada pergunta de
+boletim leva **perto de 1 minuto**: uns 15 s planejando, 15 s lendo o portal e
+20 s escrevendo. As quatro perguntas somam uns 5 minutos. **Não fique em
+silêncio**, narre o que o avatar mostra: "tá pensando... agora entrou no
+portal... achou... tá escrevendo."
+
+No navegador ao lado, **nome, foto, matrícula, nascimento e filiação aparecem
+borrados** de propósito (as notas não). Se alguém perguntar:
+> "O Sabiá lê tudo, mas o telão só mostra o que precisa. O borrão é só na tela."
 
 ### O que é um agente (slides 6 e 7)
 > "Um chatbot só conversa. Um agente percebe, decide, age, e tem um objetivo.
@@ -85,15 +92,16 @@ funciona** quase não tem. Conte como história, na ordem:
 - **9, a coluna:** "Mostrava 6,0 em Física, e a média era 8,5. Ele lia a coluna errada."
 - **10, a certeza:** "Esse é o pior tipo de erro: ele respondia com toda a certeza, e
   estava errado. Pedi a tarefa de segunda e ele me mostrou a de hoje."
-- **11, a sabotagem:** "Aí eu escrevi 134 testes e **quebrei meu próprio código de
-  propósito**. Quando eu estraguei a média, 4 testes acusaram. Ótimo. Quando eu tirei
+- **11, a sabotagem:** "Aí eu escrevi 144 testes e **quebrei meu próprio código de
+  propósito**. Quando eu estraguei a média, 6 testes acusaram. Ótimo. Quando eu tirei
   uma palavra de um filtro, **nenhum** acusou. O teste era fraco, e eu não sabia."
 
 ### Cuidados (slides 12 e 13)
 Fale antes de perguntarem:
 > "Ele só lê, nunca manda mensagem nem muda nada. E só funciona neste computador.
 > Por isso vocês não usam do computador de vocês: qualquer um na rede veria as
-> notas dela."
+> notas dela. E repararam que o nome dela apareceu borrado no navegador? Isso
+> também foi pensado."
 
 No 13, seja honesto sobre o limite: cada conversa nova começa do zero (ele não junta o que aprendeu em uma com a outra) e ele não atende a escola
 inteira. Isso passa mais confiança do que prometer tudo.
@@ -134,16 +142,23 @@ responder a pergunta de segurança antes de ela ser feita. Se ninguém digitar e
 
 | problema | solução |
 |---|---|
+| pergunta travou ou demorou demais | **Parar** corta na hora (mata a chamada ao modelo) e libera a próxima |
 | internet ruim para a IA | no seletor da caixa de pergunta, troque para **Sem IA** · continua lendo os sistemas de verdade |
 | o Claude falhou ou está lento | troque para **OpenAI** (a mais rápida, usa a chave) ou **Antigravity** no mesmo seletor |
 | sem internet nenhuma | `offline/index.html` · simulação com dados fictícios |
 | o 2FA não chega | siga pelos slides 6 a 14 e volte à demo depois |
 | ele erra uma pergunta | "boa, anota aí, é assim que eu acho bug" |
+| a janela do navegador ficou em branco | é a máscara falhando **fechada** (prefere não mostrar a mostrar o nome). O chat segue funcionando; continue por ele |
+| aviso de "página mudou" no chat | a escola mexeu numa tela. Ele recusa em vez de errar; siga com as outras perguntas |
 
 ## Checklist antes de cada ciclo
 
 - [ ] `npm run doctor` com tudo marcado, e `npm test` passando
+- [ ] `npm run doctor -- --fontes`: as cinco fontes lidas com segurança (✓)
+- [ ] motor no seletor da caixa de pergunta: **Automático**, usando o **Claude**
+- [ ] se o código foi atualizado, feche e abra o Sabiá de novo (o servidor antigo segue com o código velho)
 - [ ] rodar as 4 perguntas da demo uma vez (a primeira é mais lenta, aquece o navegador)
+- [ ] conferir no navegador: nome, foto e matrícula **borrados**, notas legíveis
 - [ ] janela do navegador ao lado do chat, as duas visíveis no projetor
 - [ ] celular da dona da conta por perto (código 2FA)
 - [ ] notebook na tomada

@@ -62,8 +62,12 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
   }
 
   /* ---- quem está recebendo os eventos agora (uma pergunta por vez) ---- */
-  let emAndamento: { emitir: (e: EventoDoTurno | { tipo: "conectado" }) => void; parar: AbortController } | null =
-    null;
+  let emAndamento: {
+    emitir: (e: EventoDoTurno | { tipo: "conectado" }) => void;
+    parar: AbortController;
+    /** a conversa que está respondendo (não pode ser apagada até terminar) */
+    conversa?: string;
+  } | null = null;
 
   const portao2fa = criarPortao2FA({
     prazoMs: Number(process.env.PRAZO_2FA_MS || 3 * 60 * 1000),
@@ -261,6 +265,11 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
   });
 
   app.delete("/api/conversas/:id", (req, res) => {
+    // Apagar a conversa que está respondendo derrubava o servidor: o salvamento
+    // do fim da pergunta não achava o arquivo e lançava fora de qualquer try.
+    if (emAndamento?.conversa === String(req.params.id)) {
+      return res.status(409).json({ erro: "Essa conversa está respondendo agora. Apague quando terminar." });
+    }
     try {
       conversas.apagar(String(req.params.id));
       res.json({ ok: true });
@@ -291,10 +300,13 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
       if (e.tipo !== "texto") eventos.push(e);
       enviar(e);
     };
-    emAndamento = { emitir, parar };
-    // fechar a aba no meio também para a pergunta
+    emAndamento = { emitir, parar, conversa: conversa.id };
+    // fechar a aba no meio também para a pergunta, e desiste de esperar o
+    // código 2FA (senão o servidor ficava "ocupado" até o prazo de 3 min)
     res.on("close", () => {
-      if (!res.writableFinished) parar.abort();
+      if (res.writableFinished) return;
+      parar.abort();
+      portao2fa.cancelar();
     });
 
     emitir({ tipo: "conversa", id: conversa.id, titulo: conversa.titulo });
@@ -325,9 +337,15 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
         criadoEm: new Date(inicio).toISOString(),
         eventos,
       };
-      conversas.salvarTurno(conversa.id, turno);
-      emAndamento = null;
-      res.end();
+      try {
+        conversas.salvarTurno(conversa.id, turno);
+      } catch (e) {
+        // o arquivo sumiu no meio (apagado por fora): a resposta já foi, só não fica salva
+        log(`Aviso: não consegui salvar a conversa (${e instanceof Error ? e.message : String(e)})`);
+      } finally {
+        emAndamento = null;
+        res.end();
+      }
     }
   });
 

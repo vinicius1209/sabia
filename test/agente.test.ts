@@ -8,6 +8,7 @@ import sabia from "../src/agentes/sabia/index.ts";
 import { completarPlano, criarAgente, PerguntaInterrompida } from "../src/nucleo/agente.ts";
 import type { Motor } from "../src/nucleo/motores/index.ts";
 import type { Entrada } from "../src/nucleo/prompt.ts";
+import { rodar } from "../src/nucleo/motores/cli.ts";
 import type { EventoDoTurno } from "../src/nucleo/protocolo.ts";
 import { criarRegistro, type Plano } from "../src/nucleo/registro.ts";
 
@@ -212,5 +213,34 @@ describe("laco do agente", () => {
     });
     await assert.rejects(perguntar("nota?", { sinal: parar.signal }), PerguntaInterrompida);
     assert.equal(executou, false);
+  });
+
+  test("parar DURANTE a chamada ao modelo responde na hora, e o sinal chega ao motor", { timeout: 3000 }, async () => {
+    // um motor lento que nunca termina sozinho (o Claude pela CLI leva ~20 s)
+    let sinalDoMotor: AbortSignal | undefined;
+    const motor: Motor = {
+      nome: "lento",
+      plano: (e) => {
+        sinalDoMotor = e.sinal;
+        return new Promise(() => {});
+      },
+      resposta: () => new Promise(() => {}),
+    };
+    const parar = new AbortController();
+    const { perguntar } = agenteCom(motor);
+    const inicio = Date.now();
+    setTimeout(() => parar.abort(), 50);
+    await assert.rejects(perguntar("nota?", { sinal: parar.signal }), PerguntaInterrompida);
+    assert.ok(Date.now() - inicio < 1000, "esperou o modelo terminar em vez de parar");
+    assert.equal(sinalDoMotor?.aborted, true, "o motor nao recebeu o sinal para cancelar a chamada");
+  });
+
+  test("a CLI do motor e morta ao parar (nao fica rodando e gastando a assinatura)", { timeout: 3000 }, async () => {
+    const parar = new AbortController();
+    const inicio = Date.now();
+    const chamada = rodar("sleep", ["30"], "", 60_000, undefined, parar.signal);
+    setTimeout(() => parar.abort(), 50);
+    await assert.rejects(chamada, /parado a pedido/);
+    assert.ok(Date.now() - inicio < 2000, "a CLI seguiu rodando depois de parar");
   });
 });

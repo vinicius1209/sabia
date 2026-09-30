@@ -33,6 +33,10 @@ after(() => fs.rmSync(HOME, { recursive: true, force: true }));
 
 /** a forma da "página" da estação: o teste troca para simular a fonte mudando */
 let formaDaEstacao = "colunas: temperatura | chuva";
+/** quanto a "leitura" demora: o teste aumenta para simular uma pergunta em andamento */
+let demoraDaEstacao = 0;
+/** liga para o login de brinquedo pedir o código 2FA antes de responder */
+let pedeCodigo = false;
 
 const clima = defineCapacidade({
   nome: "ler_clima",
@@ -45,6 +49,7 @@ const clima = defineCapacidade({
   saida: z.object({ temperatura: z.number(), chuva: z.boolean() }),
   ler: async (_args, passo, estrutura) => {
     passo("Olhando o céu");
+    if (demoraDaEstacao) await new Promise((r) => setTimeout(r, demoraDaEstacao));
     estrutura?.(formaDaEstacao);
     return { temperatura: 23, chuva: false };
   },
@@ -69,6 +74,9 @@ const pacoteClima = definirAgente({
   atalhos: [{ titulo: "Chuva", descricao: "A previsão de hoje", pergunta: "Vai chover?", icone: "nuvem", cor: "azul" }],
   aviso: "Previsão de brinquedo.",
   capacidades: [clima],
+  preparar: async ({ pedirCodigo }) => {
+    if (pedeCodigo) await pedirCodigo();
+  },
   campos: [{ chave: "CIDADE", rotulo: "Cidade", tipo: "texto", obrigatorio: true, grupo: "Onde" }],
   marca: {
     pasta: HOME,
@@ -424,6 +432,68 @@ describe("servidor com o pacote de brinquedo e o motor sem IA", () => {
     estado = await r.json();
     assert.deepEqual(estado.mudancas, []);
     assert.equal((await fetch(`${base}/api/estruturas/nao_existe/aceitar`, { method: "POST" })).status, 404);
+  });
+
+  test("apagar a conversa que esta respondendo e recusado (antes derrubava o servidor)", async () => {
+    demoraDaEstacao = 400;
+    try {
+      const primeira = await perguntar({ pergunta: "Vai ter chuva?" });
+      const id = primeira[0].id as string;
+      const emAndamento = perguntar({ conversa: id, pergunta: "E a chuva de novo?" });
+      await new Promise((r) => setTimeout(r, 120));
+      const r = await fetch(`${base}/api/conversas/${id}`, { method: "DELETE" });
+      assert.equal(r.status, 409);
+      await emAndamento;
+      assert.equal((await fetch(`${base}/api/conversas/${id}`, { method: "DELETE" })).status, 200);
+    } finally {
+      demoraDaEstacao = 0;
+    }
+  });
+
+  test("se o arquivo da conversa sumir no meio, a pergunta termina e o servidor segue vivo", async () => {
+    demoraDaEstacao = 300;
+    try {
+      const primeira = await perguntar({ pergunta: "Vai ter chuva?" });
+      const id = primeira[0].id as string;
+      const emAndamento = perguntar({ conversa: id, pergunta: "E agora?" });
+      await new Promise((r) => setTimeout(r, 100));
+      fs.rmSync(path.join(HOME, "conversas", `${id}.json`));
+      const eventos = await emAndamento;
+      assert.ok(eventos.some((e) => e.tipo === "resposta"), "a pergunta nao terminou");
+    } finally {
+      demoraDaEstacao = 0;
+    }
+    // o servidor continua respondendo, e a trava de "ocupado" foi liberada
+    const estado = await (await fetch(`${base}/api/estado`)).json();
+    assert.equal(estado.ocupado, false);
+    const depois = await perguntar({ pergunta: "Vai ter chuva amanha?" });
+    assert.ok(depois.some((e) => e.tipo === "resposta"));
+  });
+
+  test("fechar a aba enquanto ele espera o codigo 2FA libera o Sabia na hora", async () => {
+    pedeCodigo = true;
+    try {
+      const aba = new AbortController();
+      const pedido = fetch(`${base}/api/perguntar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pergunta: "Vai ter chuva?" }),
+        signal: aba.signal,
+      }).then((r) => r.text()).catch(() => "");
+      await new Promise((r) => setTimeout(r, 150));
+      assert.equal((await (await fetch(`${base}/api/estado`)).json()).ocupado, true);
+      aba.abort(); // a pessoa fechou a aba
+      await pedido;
+      // antes, ficava "ocupado" esperando o código por 3 minutos
+      let ocupado = true;
+      for (let i = 0; i < 20 && ocupado; i++) {
+        await new Promise((r) => setTimeout(r, 50));
+        ocupado = (await (await fetch(`${base}/api/estado`)).json()).ocupado;
+      }
+      assert.equal(ocupado, false, "o servidor ficou preso esperando um código que ninguém vai digitar");
+    } finally {
+      pedeCodigo = false;
+    }
   });
 
   test("caminho que nao e API cai na tela", async () => {

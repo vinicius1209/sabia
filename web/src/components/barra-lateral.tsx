@@ -156,6 +156,7 @@ export function BarraLateral({
                               <DropdownMenuItem
                                 className={item}
                                 variant="destructive"
+                                disabled={sabia.emAndamento}
                                 onClick={() => void sabia.apagar(c.id)}
                               >
                                 <Trash2Icon />

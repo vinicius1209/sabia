@@ -92,6 +92,23 @@ export function montarHorarios(tabelas: Linha[][], hojeData: Date) {
   return { grade: out, hoje, amanha };
 }
 
+type Dados = z.infer<typeof Saida>;
+
+/**
+ * O dia que a pergunta pede, e a resposta quando esse dia não tem aula.
+ * Nunca troca por outro dia: numa sexta, "amanhã" é sábado. Antes caía no
+ * primeiro dia da grade e a resposta dizia as aulas de segunda como se fossem
+ * de amanhã.
+ */
+export function diaPedido(pergunta: string, d: Dados): { dia: Dados["grade"][number] } | { semAula: string } {
+  const p = semAcento(pergunta);
+  const nomeado = DIAS.find((n) => new RegExp(`\\b${semAcento(n)}\\b`).test(p));
+  const alvo = /amanh/.test(p) ? d.amanha : nomeado ?? d.hoje;
+  const rotulo = /amanh/.test(p) ? `Amanhã (${alvo.toLowerCase()})` : nomeado ? alvo : `Hoje (${alvo.toLowerCase()})`;
+  const dia = d.grade.find((x) => semAcento(x.dia) === semAcento(alvo));
+  return dia ? { dia } : { semAula: `${rotulo} não tem aula no quadro de horários.` };
+}
+
 /* -------------------------- a capacidade --------------------------- */
 
 export default defineCapacidade({
@@ -104,7 +121,9 @@ export default defineCapacidade({
     "o quadro de horários da semana (que aula tem em cada dia). Cada dia já vem " +
     'marcado com "ehHoje" e "ehAmanha": use esses campos, não tente deduzir o dia. ' +
     "É a grade PADRÃO da semana: não sabe de feriado, passeio ou troca de aula. Se " +
-    '"disciplina" vier igual ao "codigo" (ex.: GEO), cite o código, não adivinhe o nome.',
+    '"disciplina" vier igual ao "codigo" (ex.: GEO), cite o código, não adivinhe o nome. ' +
+    'Se nenhum dia vier com "ehAmanha" (ex.: hoje é sexta e amanhã é sábado), amanhã não ' +
+    "tem aula na grade: diga isso, nunca mostre outro dia no lugar.",
   entrada: z.object({}),
   saida: Saida,
 
@@ -143,10 +162,9 @@ export default defineCapacidade({
     sinais: { forte: /horario|grade|proxima aula|que aula|quais aulas|aulas? (de )?amanha|tenho amanha/, fraco: /aula/ },
     raciocinio: "Vou abrir o quadro de horários da semana.",
     responder(pergunta, d) {
-      const querAmanha = /amanh/.test(semAcento(pergunta));
-      const dia =
-        d.grade.find((x) => (querAmanha ? x.ehAmanha : x.ehHoje)) ?? d.grade[0];
-      if (!dia) return { resposta: "Não consegui ler o quadro de horários agora.", itens: [] };
+      const pedido = diaPedido(pergunta, d);
+      if ("semAula" in pedido) return { resposta: pedido.semAula, itens: [] };
+      const { dia } = pedido;
       return {
         resposta: `${dia.dia}: você tem ${dia.aulas.length} aula(s).`,
         itens: dia.aulas.slice(0, 8).map((a) => ({

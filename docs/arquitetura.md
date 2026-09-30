@@ -67,12 +67,23 @@ calcular, o código calcula.** O modelo erra em coisas determinísticas.
 | em que ordem | modelo (no plano) | idem |
 | que dia é hoje | **código** | modelo não sabe a data |
 | se um evento já passou | **código** (`passou`) | modelo errava a comparação |
-| que dia é "amanhã" | **código** (`ehAmanha`) | mesma armadilha |
+| que dia é "amanhã" | **código** (`ehAmanha`) | mesma armadilha (e numa sexta, amanhã é sábado sem aula, nunca a segunda) |
 | qual coluna é a média | **código** (`offsetDaMedia`) | modelo pegava a nota errada |
 | de onde veio o dado | **código** (a partir do plano) | modelo respondia "nenhuma" |
 
 O laço não guarda estado. O histórico de cada conversa mora num arquivo e
 chega de fora a cada pergunta, então sobrevive a reiniciar o servidor.
+
+**Parar é parar.** O sinal de "Parar" (ou a aba fechada) chega até o motor: a
+CLI é morta, a conexão com a OpenAI ou o Gemini é fechada, e a espera pelo
+código 2FA é cancelada. Mesmo um motor que ignore o sinal não segura a tela: o
+laço corre a chamada contra o sinal e desiste na hora. Sem isso, "Parar"
+esperava o modelo terminar (até ~20 s na CLI) e o servidor ficava "ocupado".
+
+**O relógio pode congelar.** `contexto.ts` é a única fonte de "agora", e
+`congelarRelogio()` (ou `SABIA_AGORA=2026-09-26T10:00:00-03:00`) fixa a data.
+O benchmark usa isso: os dados fictícios são de 26/09, e o cabeçalho do prompt
+tem que dizer o mesmo dia, senão o modelo "erra" por culpa do teste.
 
 ## Os motores
 
@@ -266,6 +277,7 @@ src/
     index.ts             O PACOTE: persona, campos, marca, preparar()
     capacidades/         uma capacidade por arquivo
     browser.mjs          sessão, login, 2FA com pessoa no meio, auto-recuperação
+    mascara.ts           o borrão do telão (nome, foto, matrícula...), falha fechada
     marca/               as poses do mascote
 web/src/
   hooks/use-sabia.ts     o estado da tela

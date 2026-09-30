@@ -19,6 +19,7 @@ import { montarSistema } from "../src/nucleo/prompt.ts";
 import { criarRegistro, type Plano } from "../src/nucleo/registro.ts";
 import type { Troca } from "../src/nucleo/memoria.ts";
 import { completarPlano } from "../src/nucleo/agente.ts";
+import { congelarRelogio } from "../src/nucleo/contexto.ts";
 import { extrairLegenda, montarNotas } from "../src/agentes/sabia/capacidades/boletim.ts";
 import { marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
 
@@ -34,6 +35,8 @@ const RODADAS = Number(process.env.RODADAS || 1);
    a partir de linhas no layout real: se o formato mudar, o bench muda junto.
    Hoje = 26/09/2026. */
 const HOJE = new Date(2026, 8, 26);
+// o cabeçalho do prompt ("Agora são...") tem que falar do mesmo dia dos dados
+congelarRelogio(process.env.SABIA_AGORA || "2026-09-26T10:00:00-03:00");
 const SEM_ANUAL = ["--", "-", "-", "-", "--", "-", "--", "-"];
 const VAZIO_2SEM = ["-", "-", "-", "-", "-", "-", "-", "--", "-"];
 const linha = (nome: string, s1: string[], s2: string[], total: string) =>

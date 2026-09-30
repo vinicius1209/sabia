@@ -7,12 +7,12 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { colunasDoBoletim, conferirNotas, ehDisciplina, extrairLegenda, interpretarBoletim, LAYOUT_CONHECIDO, montarNotas, type Nota } from "../src/agentes/sabia/capacidades/boletim.ts";
-import { marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
-import { acharTabelas, montarHorarios } from "../src/agentes/sabia/capacidades/horarios.ts";
+import { acharTituloDoMes, lerMesAno, marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
+import { acharTabelas, diaPedido, montarHorarios } from "../src/agentes/sabia/capacidades/horarios.ts";
 import { montarDiario } from "../src/agentes/sabia/capacidades/diario.ts";
 import sabia, { quemAtende } from "../src/agentes/sabia/index.ts";
 import { criarRegistro, limparTexto } from "../src/nucleo/registro.ts";
-import { agora, cabecalhoTemporal, tabelaDeDias } from "../src/nucleo/contexto.ts";
+import { agora, cabecalhoTemporal, congelarRelogio, tabelaDeDias } from "../src/nucleo/contexto.ts";
 import { motorLocal } from "../src/nucleo/motores/local.ts";
 
 const registro = criarRegistro(sabia.capacidades);
@@ -294,6 +294,29 @@ describe("calendario: passado x futuro", () => {
     assert.equal(futuros[0].evento, "Simulado - 9° ao 3°EM");
   });
 
+  test("o mes em portugues vale o mesmo que em ingles (o idioma do navegador pode mudar)", () => {
+    const pt = marcarEventos(
+      [
+        { mes: "Outubro 2026", dia: 17, evento: "Simulado" },
+        { mes: "setembro de 2026", dia: 9, evento: "Avaliação de Português" },
+        { mes: "Março 2027", dia: 3, evento: "Volta às aulas" },
+      ],
+      hoje
+    );
+    assert.deepEqual(pt.map((x) => x.data), ["2026-09-09", "2026-10-17", "2027-03-03"]);
+    assert.deepEqual(pt.map((x) => x.passou), [true, false, false]);
+  });
+
+  test("titulo do mes: acha o de verdade, recusa o que nao e mes", () => {
+    assert.deepEqual(lerMesAno("September 2026"), { mes: 8, ano: 2026, idioma: "en", titulo: "September 2026" });
+    assert.deepEqual(lerMesAno("setembro de 2026"), { mes: 8, ano: 2026, idioma: "pt", titulo: "Setembro 2026" });
+    assert.equal(lerMesAno("Updated 2026"), null);
+    assert.equal(lerMesAno("Septembre 2026"), null); // frances: nao adivinha
+    assert.equal(acharTituloDoMes(["Copyright 2026", "Updated 2026", "October 2026"])?.mes, 9);
+    // sem titulo reconhecivel, a leitura recusa a pagina (em vez de marcar tudo sem data)
+    assert.equal(acharTituloDoMes(["Septembre 2026"]), null);
+  });
+
   test("evento de hoje NAO conta como passado", () => {
     const e = marcarEventos([{ mes: "September 2026", dia: 26, evento: "Hoje" }], hoje);
     assert.equal(e[0].passou, false);
@@ -493,6 +516,29 @@ describe("horarios: grade da semana", () => {
     assert.equal(amanha, "Segunda");
   });
 
+  test("numa sexta, 'amanha' e sabado sem aula, e nunca a segunda", () => {
+    const sexta = new Date(2026, 9, 2); // 02/out/2026 e uma sexta
+    const d = { turma: "", ...montarHorarios([DICIONARIO, GRADE], sexta) };
+    assert.equal(d.amanha, "Sábado");
+    assert.equal(d.grade.some((x) => x.ehAmanha), false);
+    const r = diaPedido("que aula eu tenho amanhã?", d);
+    assert.ok("semAula" in r, "mostrou outro dia no lugar de amanha");
+    assert.match(r.semAula, /Amanhã \(sábado\) não tem aula/);
+  });
+
+  test("o dia pedido e o dia respondido: hoje, amanha e dia com nome", () => {
+    const d = { turma: "", ...montarHorarios([DICIONARIO, GRADE], segunda) };
+    const dia = (p: string) => {
+      const r = diaPedido(p, d);
+      return "dia" in r ? r.dia.dia : r.semAula;
+    };
+    assert.equal(dia("que aula tenho hoje?"), "Segunda");
+    assert.equal(dia("e amanha?"), "Terça");
+    assert.equal(dia("qual meu horario de quarta?"), "Quarta");
+    assert.equal(dia("aulas de terca"), "Terça");
+    assert.match(dia("e no domingo?"), /^Domingo não tem aula/);
+  });
+
   test("acha a grade e o dicionario pelo cabecalho; sem a grade, a leitura recusa", () => {
     assert.ok(acharTabelas([DICIONARIO, GRADE]).grade);
     assert.equal(acharTabelas([DICIONARIO]).grade, undefined);
@@ -671,6 +717,19 @@ describe("tabela de dias do cabecalho", () => {
 
   test("o cabecalho do prompt inclui a tabela", () => {
     assert.match(cabecalhoTemporal(), /\(HOJE\)/);
+  });
+
+  test("o relogio congela (o bench fala do mesmo dia dos dados)", () => {
+    try {
+      congelarRelogio("2026-09-26T10:00:00-03:00");
+      assert.equal(agora().iso, "2026-09-26");
+      assert.match(cabecalhoTemporal(), /s[aá]bado 26\/09\/2026 \(HOJE\)/);
+      // valor quebrado e erro, e nao a data real calada
+      assert.throws(() => congelarRelogio("amanha"), /Data inválida/);
+    } finally {
+      congelarRelogio();
+    }
+    assert.notEqual(agora().iso, "2026-09-26");
   });
 });
 

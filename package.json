@@ -26,6 +26,7 @@
     "check": "tsc --noEmit && npm run typecheck -w @sabia/web",
     "test": "node --test 'test/unidade.test.ts' 'test/doisfatores.test.ts' 'test/agente.test.ts' 'test/nucleo.test.ts'",
     "test:real": "node --test 'test/integracao.test.ts'",
+    "test:mascara": "node --test 'test/mascara.test.ts'",
     "bench": "node scripts/bench.ts",
     "pdf": "node scripts/pdf.mjs"
   },

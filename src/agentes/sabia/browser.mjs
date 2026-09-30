@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
 import { caminhos } from "../../nucleo/config.ts";
+import { mascaraLigada, scriptDaMascara, termosDaMascara } from "./mascara.ts";
 
 const CLASSAPP = "https://classapp.com.br";
 
@@ -24,8 +25,20 @@ export async function getBrowser() {
     headless: process.env.SHOW_BROWSER === "0",
     viewport: { width: 1280, height: 860 },
     args: ["--window-size=1300,900"],
+    // Fixos de propósito: o ClassApp escreve o nome do mês no idioma do
+    // navegador, e o calendário é lido por esse nome. Sem isto, a mesma
+    // página muda de cara conforme o computador da feira.
+    locale: "en-US",
+    timezoneId: "America/Sao_Paulo",
   });
+  // No telão, nome, matrícula, nascimento, filiação e telefone aparecem
+  // borrados (ver mascara.ts). A primeira aba já existia antes do script:
+  // recarrega para ela também nascer mascarada.
+  if (mascaraLigada(process.env)) {
+    await ctx.addInitScript(scriptDaMascara, { termos: termosDaMascara(process.env) });
+  }
   page = ctx.pages()[0] || (await ctx.newPage());
+  if (mascaraLigada(process.env) && page.url() !== "about:blank") await page.reload().catch(() => {});
   return { ctx, page };
 }
 

@@ -94,6 +94,20 @@ export function criarAgente({
     const conferir = () => {
       if (sinal?.aborted) throw new PerguntaInterrompida();
     };
+    // A chamada ao modelo é a parte longa (até ~20 s na CLI). O motor recebe o
+    // sinal e cancela de verdade; a corrida garante que "Parar" responde na hora
+    // mesmo com um motor que ignore o sinal.
+    const ouParar = <T>(p: Promise<T>): Promise<T> => {
+      if (!sinal) return p;
+      conferir();
+      return new Promise<T>((ok, falha) => {
+        const aoAbortar = () => falha(new PerguntaInterrompida());
+        sinal.addEventListener("abort", aoAbortar, { once: true });
+        p.then(ok, (e) => falha(sinal.aborted ? new PerguntaInterrompida() : e)).finally(() =>
+          sinal.removeEventListener("abort", aoAbortar)
+        );
+      });
+    };
 
     // FASE 0: as fontes acessíveis (pode pausar pedindo código a uma pessoa)
     await preparar(passo);
@@ -101,14 +115,15 @@ export function criarAgente({
 
     // FASE 1: planejar
     passo("Entendendo a pergunta");
-    const planoDoModelo = await llm.plano({
+    const planoDoModelo = await ouParar(llm.plano({
       pergunta,
+      sinal,
       instrucao:
         "Monte o plano para responder. Se a pergunta precisa de um dado, consulte a fonte agora, " +
         "mesmo que a conversa ja tenha falado dele. So dispense a consulta se ela pede para " +
         "explicar ou retomar o que voce ja respondeu.",
       historico,
-    });
+    }));
     conferir();
     const { plano, completou } = completarPlano(planoDoModelo, registro, pergunta);
     if (completou) passo("Consultando a fonte de novo, para não responder de memória");
@@ -139,9 +154,10 @@ export function criarAgente({
 
     // FASE 3: responder
     passo("Escrevendo a resposta");
-    const resposta = await llm.resposta(
+    const resposta = await ouParar(llm.resposta(
       {
         pergunta,
+        sinal,
         instrucao: plano.ferramentas.length
           ? "Responda com base APENAS nos dados abaixo (a conversa so ajuda a entender a pergunta)."
           : "Nenhuma fonte foi consultada agora. Converse, ou retome o que voce ja respondeu nesta " +
@@ -149,8 +165,10 @@ export function criarAgente({
         dados: plano.ferramentas.length ? coletado : undefined,
         historico,
       },
-      (parcial) => emitir({ tipo: "texto", parcial })
-    );
+      (parcial) => {
+        if (!sinal?.aborted) emitir({ tipo: "texto", parcial });
+      }
+    ));
 
     // A fonte não é opinião do modelo: sabemos exatamente o que foi lido.
     // (o modelo já respondeu "nenhuma" depois de consultar o ClassApp)

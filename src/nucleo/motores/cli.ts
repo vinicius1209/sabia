@@ -24,21 +24,26 @@ export interface PedidoCli {
   schema: z.ZodType;
   /** texto da resposta até onde já foi escrito (só o Claude transmite) */
   aoEscrever?: (parcial: string) => void;
+  /** "Parar" mata o processo da CLI na hora, em vez de esperar ela terminar */
+  sinal?: AbortSignal;
 }
 
 const PASTA = path.join(os.tmpdir(), "sabia-motor-cli");
 
 /** Roda a CLI; `aoLinha` recebe cada linha do stdout assim que ela chega. */
-function rodar(
+export function rodar(
   cmd: string,
   args: string[],
   entrada: string,
   prazoMs: number,
-  aoLinha?: (linha: string) => void
+  aoLinha?: (linha: string) => void,
+  sinal?: AbortSignal
 ): Promise<string> {
   fs.mkdirSync(PASTA, { recursive: true });
   return new Promise((ok, falha) => {
-    const p = spawn(cmd, args, { cwd: PASTA, stdio: ["pipe", "pipe", "pipe"] });
+    if (sinal?.aborted) return falha(new Error(`${cmd} parado antes de começar`));
+    // `signal` do spawn: abortar mata o processo (SIGTERM) e dispara "error"
+    const p = spawn(cmd, args, { cwd: PASTA, stdio: ["pipe", "pipe", "pipe"], signal: sinal });
     let saida = "";
     let erro = "";
     let resto = "";
@@ -58,7 +63,7 @@ function rodar(
     p.stderr.on("data", (d) => (erro += d));
     p.on("error", (e) => {
       clearTimeout(timer);
-      falha(new Error(`Não consegui rodar "${cmd}": ${e.message}`));
+      falha(new Error(sinal?.aborted ? `${cmd} parado a pedido` : `Não consegui rodar "${cmd}": ${e.message}`));
     });
     p.on("close", (codigo) => {
       clearTimeout(timer);
@@ -86,7 +91,7 @@ interface ResultadoClaude {
  * pedaços dela (`input_json_delta`) são o JSON da resposta sendo escrito.
  * Medido: 47 pedaços para uma resposta de três frases.
  */
-export async function pedirClaude(modelo: string, { sistema, prompt, schema, aoEscrever }: PedidoCli) {
+export async function pedirClaude(modelo: string, { sistema, prompt, schema, aoEscrever, sinal }: PedidoCli) {
   const args = [
     "-p",
     "--model", modelo,
@@ -103,7 +108,7 @@ export async function pedirClaude(modelo: string, { sistema, prompt, schema, aoE
   ];
 
   const umaVez = async (): Promise<ResultadoClaude> => {
-    if (!aoEscrever) return JSON.parse(await rodar(exe("claude"), args, prompt, 90_000)) as ResultadoClaude;
+    if (!aoEscrever) return JSON.parse(await rodar(exe("claude"), args, prompt, 90_000, undefined, sinal)) as ResultadoClaude;
     let acumulado = "";
     let mostrado = "";
     let final: ResultadoClaude = {};
@@ -123,7 +128,7 @@ export async function pedirClaude(modelo: string, { sistema, prompt, schema, aoE
         mostrado = parcial;
         aoEscrever(parcial);
       }
-    });
+    }, sinal);
     return final;
   };
 
@@ -144,7 +149,7 @@ export async function pedirClaude(modelo: string, { sistema, prompt, schema, aoE
 }
 
 /** Codex (`codex exec`), com a assinatura do ChatGPT logada nesta máquina. */
-export async function pedirCodex(modelo: string, { sistema, prompt, schema }: PedidoCli) {
+export async function pedirCodex(modelo: string, { sistema, prompt, schema, sinal }: PedidoCli) {
   fs.mkdirSync(PASTA, { recursive: true });
   const id = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const arqSchema = path.join(PASTA, `schema-${id}.json`);
@@ -165,7 +170,7 @@ export async function pedirCodex(modelo: string, { sistema, prompt, schema }: Pe
     "-", // o prompt vem pelo stdin
   ];
   try {
-    await rodar(exe("codex"), args, `${sistema}\n\n${prompt}`, 120_000);
+    await rodar(exe("codex"), args, `${sistema}\n\n${prompt}`, 120_000, undefined, sinal);
     return JSON.parse(fs.readFileSync(arqSaida, "utf8"));
   } finally {
     fs.rmSync(arqSchema, { force: true });
@@ -184,7 +189,7 @@ export async function pedirCodex(modelo: string, { sistema, prompt, schema }: Pe
  *     `structured_output`.
  * Não tem flag de prompt de sistema: ele vai junto do prompt, como no Codex.
  */
-export async function pedirAgy(modelo: string, { sistema, prompt, schema }: PedidoCli) {
+export async function pedirAgy(modelo: string, { sistema, prompt, schema, sinal }: PedidoCli) {
   const args = [
     "-p", `${sistema}\n\n${prompt}`,
     ...(modelo ? ["--model", modelo] : []),
@@ -195,7 +200,7 @@ export async function pedirAgy(modelo: string, { sistema, prompt, schema }: Pedi
     "--disable-slash-commands",
     "--print-timeout", "2m",
   ];
-  const bruto = await rodar(exe("agy"), args, "", 150_000);
+  const bruto = await rodar(exe("agy"), args, "", 150_000, undefined, sinal);
   const r = JSON.parse(bruto) as { status?: string; structured_output?: unknown; response?: string };
   if (r.status === "SUCCESS" && r.structured_output != null) return r.structured_output;
   throw new Error(erroDeLogin(r.response) ?? `O agy não devolveu o formato pedido: ${String(r.response ?? "").slice(0, 200)}`);
@@ -219,7 +224,7 @@ export function motorPorAssinatura({ sistema, registro }: DepsDoMotor, qual: Qua
     e: Entrada,
     aoEscrever?: (parcial: string) => void
   ): Promise<z.infer<S>> =>
-    schema.parse(await pedir(modelo, { sistema: sistema(), prompt: montarPrompt(e), schema, aoEscrever }));
+    schema.parse(await pedir(modelo, { sistema: sistema(), prompt: montarPrompt(e), schema, aoEscrever, sinal: e.sinal }));
   return {
     nome: `${NOME[qual]} ${modelo || "padrão"} (assinatura)`,
     plano: (e) => chamar(registro.Plano, e),
