@@ -1,0 +1,36 @@
+{
+  "name": "sabia",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sabiá: agente de IA somente leitura que opera o ClassApp e o Portal Activesoft ao vivo, com Playwright. Feito para a Exposalê.",
+  "license": "MIT",
+  "author": "Vinicius Machado",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vinicius1209/sabia.git"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "check": "tsc --noEmit",
+    "bench": "node scripts/bench.ts",
+    "test": "node --test 'test/unidade.test.ts' 'test/doisfatores.test.ts' 'test/agente.test.ts'",
+    "test:real": "node --test 'test/integracao.test.ts'",
+    "pdf": "node scripts/pdf.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^0.14.0",
+    "express": "^4.21.2",
+    "openai": "^7.23.0",
+    "playwright": "^1.50.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  }
+}

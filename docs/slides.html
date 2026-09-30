@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Sabiá · Exposalê</title>
+<style>
+  /* Paleta tirada do proprio mascote */
+  :root{
+    --laranja:#C85A28;
+    --laranja-claro:#E07A42;
+    --marrom:#5C4636;
+    --marrom-claro:#6B5444;
+    --creme:#F4EDE2;
+    --creme-escuro:#E8DCC8;
+    --amarelo:#F5C242;
+    --tinta:#2B211A;
+  }
+  @page{ size:1280px 720px; margin:0 }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--tinta); background:var(--creme);
+  }
+  .slide{
+    width:1280px; height:720px; padding:104px 80px 64px; position:relative;
+    display:flex; flex-direction:column; justify-content:center;
+    page-break-after:always; break-after:page; overflow:hidden;
+    background:var(--creme);
+  }
+  .slide:last-child{ page-break-after:auto; break-after:auto }
+
+  /* numeracao e rodape */
+  .slide::after{
+    content:attr(data-n); position:absolute; right:40px; bottom:28px;
+    font-size:14px; color:#A89886; font-variant-numeric:tabular-nums;
+  }
+  .tag{
+    position:absolute; top:40px; left:80px; font-size:13px; letter-spacing:2.5px;
+    text-transform:uppercase; color:var(--laranja); font-weight:700;
+  }
+
+  h1{ font-size:80px; line-height:1.03; letter-spacing:-2px; font-weight:800 }
+  .emo{ font-size:.62em; vertical-align:.06em }
+  h2{ font-size:54px; line-height:1.12; letter-spacing:-1.2px; font-weight:750; margin-bottom:26px }
+  h3{ font-size:30px; font-weight:700; margin-bottom:12px }
+  p{ font-size:26px; line-height:1.5; color:var(--marrom-claro); max-width:900px }
+  .lead{ font-size:32px; color:var(--marrom); margin-top:20px }
+  strong{ color:var(--tinta) }
+
+  /* capa */
+  .capa{ background:linear-gradient(145deg,var(--marrom) 0%, #3E2E22 100%); color:var(--creme) }
+  .capa h1{ font-size:132px; color:var(--creme) }
+  .capa p{ color:var(--creme-escuro) }
+  .capa .tag{ color:var(--amarelo) }
+  .capa::after{ color:#8A7462 }
+  .capa .ave{ position:absolute; right:40px; top:50%; transform:translateY(-50%); width:470px }
+  .capa .txt{ max-width:620px }
+  .assina{ margin-top:44px; font-size:20px; color:var(--creme-escuro); line-height:1.6 }
+
+  /* blocos */
+  .tres{ display:flex; gap:22px; margin-top:34px }
+  .card{
+    flex:1; background:#fff; border:2px solid var(--creme-escuro); border-radius:18px;
+    padding:30px 26px;
+  }
+  .card .ico{ font-size:42px; margin-bottom:14px }
+  .card h3{ font-size:25px; margin-bottom:8px }
+  .card p{ font-size:19px; line-height:1.45 }
+
+  .fases{ display:flex; align-items:stretch; gap:18px; margin:40px 0 28px }
+  .fase{
+    flex:1; background:#fff; border:3px solid var(--laranja); border-radius:18px;
+    padding:28px 22px; text-align:center;
+    display:flex; flex-direction:column; justify-content:center;
+  }
+  .fase .n{ font-size:15px; color:var(--laranja); font-weight:800; letter-spacing:2px }
+  .fase h3{ font-size:31px; margin:8px 0 8px }
+  .fase p{ font-size:18px; margin:0 auto }
+  .seta{ font-size:40px; color:var(--laranja); font-weight:300; align-self:center }
+
+  /* comparativo antes/depois */
+  .erro{ display:flex; gap:26px; margin-top:30px }
+  .erro > div{ flex:1; border-radius:18px; padding:32px; border:2px solid }
+  .errado{ background:#FBEAE4; border-color:#E5B5A2 }
+  .certo{ background:#E6F2E8; border-color:#A8CDB0 }
+  .erro .rot{ font-size:17px; letter-spacing:1.5px; text-transform:uppercase; font-weight:800; margin-bottom:10px }
+  .errado .rot{ color:#B04A2A } .certo .rot{ color:#2F7D45 }
+  .erro .val{ font-size:60px; font-weight:800; line-height:1.05 }
+  .errado .val{ color:#B04A2A } .certo .val{ color:#2F7D45 }
+  .erro .exp{ font-size:19px; color:var(--marrom-claro); margin-top:12px }
+
+  .destaque{
+    background:var(--marrom); color:var(--creme); border-radius:18px;
+    padding:30px 34px; margin-top:30px; font-size:29px; line-height:1.4;
+  }
+  .destaque strong{ color:var(--amarelo) }
+
+  ul{ list-style:none; margin-top:26px }
+  li{ font-size:26px; line-height:1.85; color:var(--marrom-claro); padding-left:40px; position:relative }
+  li::before{ content:"›"; position:absolute; left:8px; color:var(--laranja); font-weight:800; font-size:30px }
+  li strong{ color:var(--tinta) }
+
+  .duas{ display:flex; gap:26px; margin-top:26px }
+  .duas > div{ flex:1 }
+  .duas h3{ color:var(--laranja); font-size:26px }
+
+  .grande{ font-size:44px; line-height:1.28; color:var(--marrom); font-weight:650; max-width:1000px }
+  /* O mascote mora numa faixa reservada a direita. Antes ele ficava por cima
+     do conteudo e aparecia cortado pela borda do slide. */
+  .mini{ position:absolute; right:56px; bottom:64px; width:168px; z-index:0 }
+  .com-ave h2, .com-ave p, .com-ave ul, .com-ave .destaque{
+    position:relative; z-index:1; max-width:960px;
+  }
+  .com-ave .destaque{ margin-right:200px }
+  .com-ave ul{ padding-right:200px }
+  .com-ave .tres{ padding-right:184px }
+  .centro{ text-align:center; align-items:center }
+  .centro p{ margin:0 auto }
+
+  /* linhas equilibradas: acaba com a palavra sozinha na ultima linha */
+  h1, h2, .lead, .grande, .caso > div{ text-wrap:balance }
+
+  /* ---- slides novos da revisao ---- */
+  .cinco{ display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-top:34px }
+  .cinco .card{ padding:24px 18px }
+  .cinco .card .ico{ font-size:38px; margin-bottom:10px }
+  .cinco .card h3{ font-size:22px; margin-bottom:6px }
+  .cinco .card p{ font-size:16px }
+
+  .estados{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-top:22px }
+  .estado{ background:#fff; border:2px solid var(--creme-escuro); border-radius:18px;
+    padding:18px 14px 20px; text-align:center }
+  .estado img{ width:128px; height:128px; object-fit:contain; display:block; margin:0 auto }
+  .estado h3{ font-size:24px; margin:10px 0 4px }
+  .estado p{ font-size:16px; margin:0 auto; line-height:1.4 }
+
+  .casos{ display:flex; flex-direction:column; gap:16px; margin-top:26px }
+  .caso{ display:grid; grid-template-columns:1fr 1.35fr; border-radius:18px; overflow:hidden;
+    border:2px solid var(--creme-escuro) }
+  .caso > div{ padding:20px 26px; font-size:21px; line-height:1.4 }
+  .caso .perg{ background:#fff; color:var(--marrom) }
+  .caso .fez{ background:#FBEAE4; color:#8C3A22 }
+  .caso .rot{ display:block; font-size:13px; letter-spacing:1.5px; text-transform:uppercase;
+    font-weight:800; margin-bottom:6px; opacity:.75 }
+
+  .comecar{ margin-top:26px; font-size:22px; line-height:1.5; color:var(--marrom);
+    background:#fff; border:2px dashed var(--creme-escuro); border-radius:16px; padding:18px 24px }
+
+  .chips{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:34px }
+  .chip{ background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.24);
+    border-radius:30px; padding:10px 20px; font-size:19px; color:var(--creme) }
+</style>
+</head>
+<body>
+
+<!-- 1 CAPA -->
+<section class="slide capa" data-n="">
+  <div class="tag">Exposalê · Ciência, Cultura e Tecnologia · Salesiano Itajaí</div>
+  <img class="ave" src="marca/sabia-03-acao.png" alt="" />
+  <div class="txt">
+    <h1>Sabiá</h1>
+    <p class="lead" style="max-width:560px">Um agente de IA que usa os sistemas da escola por você.</p>
+    <div class="assina">
+      🎤 Vinicius Machado e Nathalia<br />
+      Apresentadores convidados
+    </div>
+  </div>
+</section>
+
+<!-- 2 O PROBLEMA: fala com a plateia, que tem ClassApp no bolso -->
+<section class="slide" data-n="2">
+  <div class="tag">😩 O problema</div>
+  <h2>Pra saber como vocês estão na escola,<br />são cinco coisas em dois sistemas.</h2>
+  <div class="cinco">
+    <div class="card"><div class="ico">📣</div><h3>Avisos</h3><p>ClassApp</p></div>
+    <div class="card"><div class="ico">📅</div><h3>Provas</h3><p>ClassApp</p></div>
+    <div class="card"><div class="ico">📊</div><h3>Notas</h3><p>Portal do Aluno</p></div>
+    <div class="card"><div class="ico">🕐</div><h3>Horários</h3><p>Portal do Aluno</p></div>
+    <div class="card"><div class="ico">📒</div><h3>Tarefas</h3><p>Portal do Aluno</p></div>
+  </div>
+  <p class="lead" style="margin-top:32px">Dois sistemas, dois logins, e nenhum conversa com o outro.</p>
+</section>
+
+<!-- 3 A IDEIA -->
+<section class="slide centro" data-n="3">
+  <div class="tag">💡 A ideia</div>
+  <p class="grande">
+    E se, em vez de <strong>vocês</strong> aprenderem dois sistemas,
+    um <strong>agente</strong> usasse os dois por vocês?
+  </p>
+</section>
+
+<!-- 4 O QUE OBSERVAR: prepara a plateia para a demo -->
+<section class="slide" data-n="4">
+  <div class="tag">👀 Antes da demonstração</div>
+  <h2>Fica de olho no Sabiá</h2>
+  <div class="estados">
+    <div class="estado"><img src="marca/sabia-04-pensando.png" alt="" /><h3>🤔 Pensando</h3><p>entendendo a pergunta</p></div>
+    <div class="estado"><img src="marca/sabia-05-buscando.png" alt="" /><h3>🔎 Buscando</h3><p>entrou num sistema da escola</p></div>
+    <div class="estado"><img src="marca/sabia-07-comemorando.png" alt="" /><h3>🎉 Pronto</h3><p>achou a resposta</p></div>
+    <div class="estado"><img src="marca/sabia-06-confuso.png" alt="" /><h3>😵 Confuso</h3><p>algo deu errado, e ele avisa</p></div>
+  </div>
+  <div class="destaque">Um bom agente <strong>mostra o que está fazendo</strong>. Você nunca fica no escuro.</div>
+</section>
+
+<!-- 5 DEMO -->
+<section class="slide capa centro" data-n="5">
+  <div class="tag">🎬 Agora</div>
+  <h1 style="font-size:96px">Demonstração<br />ao vivo</h1>
+  <p class="lead" style="margin-top:28px">Sem resposta pronta. Ele entra nos sistemas agora.</p>
+</section>
+
+<!-- 6 CONCEITO -->
+<section class="slide com-ave" data-n="6">
+  <img class="mini" src="marca/sabia-04-pensando.png" alt="" />
+  <div class="tag">🧠 Conceito</div>
+  <h2>O que faz dele um agente,<br />e não um chatbot</h2>
+  <ul>
+    <li>👀 <strong>Percebe:</strong> lê o ClassApp e o Portal do Aluno ao vivo</li>
+    <li>🤔 <strong>Decide:</strong> escolhe sozinho quais fontes consultar</li>
+    <li>🦾 <strong>Age:</strong> navega, faz login, e se recupera se a sessão cai</li>
+    <li>🎯 <strong>Tem objetivo:</strong> dar dado verdadeiro, ou admitir que não sabe</li>
+  </ul>
+  <div class="destaque">Ele opera <strong>software que não foi feito para ele</strong>.</div>
+</section>
+
+<!-- 7 COMO FUNCIONA -->
+<section class="slide" data-n="7">
+  <div class="tag">⚙️ Como funciona</div>
+  <h2><span class="emo">⚙️</span> Três fases</h2>
+  <div class="fases">
+    <div class="fase"><div class="n">FASE 1</div><h3><span class="emo">🗺️</span> Planeja</h3><p>decide quais fontes abrir, e em que ordem</p></div>
+    <div class="seta">→</div>
+    <div class="fase"><div class="n">FASE 2</div><h3><span class="emo">🦾</span> Executa</h3><p>navega de verdade nos sistemas</p></div>
+    <div class="seta">→</div>
+    <div class="fase"><div class="n">FASE 3</div><h3><span class="emo">💬</span> Responde</h3><p>com a fonte citada</p></div>
+  </div>
+  <div class="destaque">A IA <strong>decide</strong>. Quem <strong>age</strong> é o código.</div>
+</section>
+
+<!-- 8 ERRO 1 -->
+<section class="slide com-ave" data-n="8">
+  <img class="mini" style="width:150px;bottom:34px;right:44px" src="marca/sabia-06-confuso.png" alt="" />
+  <div class="tag">🤦 O que eu aprendi errando · 1</div>
+  <h2>Ele apontava uma prova<br />que já tinha passado</h2>
+  <div class="erro">
+    <div class="errado"><div class="rot">A próxima prova, segundo ele</div><div class="val">dia 9</div><div class="exp">a primeira que achou na lista</div></div>
+    <div class="certo"><div class="rot">Mas hoje já era</div><div class="val">dia 26</div><div class="exp">aquela prova tinha ficado para trás</div></div>
+  </div>
+  <div class="destaque">Uma IA <strong>não sabe que dia é hoje</strong>. Eu tive que contar pra ela.</div>
+</section>
+
+<!-- 9 ERRO 2 -->
+<section class="slide" data-n="9">
+  <div class="tag">🤦 O que eu aprendi errando · 2</div>
+  <h2>Ele lia a coluna errada<br />do boletim</h2>
+  <div class="erro">
+    <div class="errado"><div class="rot">Ele mostrava</div><div class="val">6,0</div><div class="exp">uma prova solta do 2º semestre</div></div>
+    <div class="certo"><div class="rot">A média era</div><div class="val">8,5</div><div class="exp">a coluna MED, sete posições adiante</div></div>
+  </div>
+  <div class="destaque">Mostrar nota errada é <strong>pior do que não mostrar nada</strong>.</div>
+</section>
+
+<!-- 10 ERRO 3: o mais perigoso, porque ele parecia certo -->
+<section class="slide" data-n="10">
+  <div class="tag">🤦 O que eu aprendi errando · 3</div>
+  <h2>Ele respondia com certeza,<br />e estava errado</h2>
+  <div class="casos">
+    <div class="caso">
+      <div class="perg"><span class="rot">📅 Pergunta</span>"Qual foi a tarefa de segunda?"</div>
+      <div class="fez"><span class="rot">O que ele fazia</span>Mostrava a de <strong>hoje</strong>, com a data de segunda escrita em cima.</div>
+    </div>
+    <div class="caso">
+      <div class="perg"><span class="rot">📒 O professor escreveu</span>"Sem tarefa."</div>
+      <div class="fez"><span class="rot">O que ele anunciava</span><strong>Tarefa de Biologia:</strong> Sem tarefa.</div>
+    </div>
+  </div>
+  <div class="destaque">Programa confiante não é programa certo. <strong>Agora ele confere antes de responder.</strong></div>
+</section>
+
+<!-- 11 TESTES -->
+<section class="slide com-ave" data-n="11">
+  <img class="mini" style="width:150px;bottom:34px;right:44px" src="marca/sabia-05-buscando.png" alt="" />
+  <div class="tag">🧪 Como eu sei que funciona</div>
+  <h2>Eu quebrei meu próprio código<br />de propósito</h2>
+  <p class="lead">70 testes rodam em menos de 1 segundo. Mas teste que nunca falha não serve pra nada:</p>
+  <ul style="margin-top:14px">
+    <li>🔨 troquei a média pelo 1º número da linha → <strong>4 falharam</strong> ✅</li>
+    <li>🔨 inverti a lógica de "já passou" → <strong>2 falharam</strong> ✅</li>
+    <li>🔨 tirei uma palavra do filtro → <strong>nenhum falhou</strong> 😬</li>
+  </ul>
+  <div class="destaque">O teste era fraco e eu não sabia.<br /><strong>Agora cada regra tem um teste que acusa.</strong></div>
+</section>
+
+<!-- 12 PRIVACIDADE: a limitacao da demo vira a licao -->
+<section class="slide com-ave" data-n="12">
+  <img class="mini" src="marca/sabia-02-icone.png" alt="" />
+  <div class="tag">🔒 Dado de pessoa de verdade</div>
+  <h2>Os cuidados que ele segue</h2>
+  <ul>
+    <li>✅ <strong>Autorização:</strong> a conta é da minha irmã, e ela permitiu</li>
+    <li>👁️ <strong>Só lê:</strong> nunca manda mensagem para professor</li>
+    <li>🖥️ <strong>Só este computador:</strong> ninguém no wifi consegue abrir</li>
+    <li>🔑 <strong>Senha:</strong> quem digita o código é a dona da conta</li>
+  </ul>
+  <div class="destaque">Por isso vocês não usam do computador de vocês:<br /><strong>qualquer um veria as notas dela.</strong></div>
+</section>
+
+<!-- 13 HONESTIDADE -->
+<section class="slide" data-n="13">
+  <div class="tag">🫱 Sendo honesto</div>
+  <h2>O que ele é, e o que ainda não é</h2>
+  <div class="duas">
+    <div>
+      <h3>É</h3>
+      <ul>
+        <li>✅ um agente de verdade</li>
+        <li>✅ 5 capacidades em 2 sistemas reais</li>
+        <li>✅ a mesma ideia das empresas de IA</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Ainda não é</h3>
+      <ul>
+        <li>⏳ não altera nada no mundo</li>
+        <li>⏳ não lembra de ontem</li>
+        <li>⏳ não atende a escola inteira</li>
+      </ul>
+    </div>
+  </div>
+  <div class="destaque">Eu sei exatamente o que falta. <strong>Isso também é parte do aprendizado.</strong></div>
+</section>
+
+<!-- 14 PROFISSOES + COMO COMECAR -->
+<section class="slide com-ave" data-n="14">
+  <img class="mini" style="width:150px;bottom:40px;right:36px" src="marca/sabia-07-comemorando.png" alt="" />
+  <div class="tag">🚀 Onde isso vira profissão</div>
+  <h2>Isso vira que profissão?</h2>
+  <div class="tres">
+    <div class="card"><div class="ico">💻</div><h3>Engenharia<br />de Software</h3><p>construir o sistema</p></div>
+    <div class="card"><div class="ico">🤖</div><h3>Engenharia<br />de IA</h3><p>o agente decidir bem</p></div>
+    <div class="card"><div class="ico">🔐</div><h3>Segurança<br />de Dados</h3><p>proteger quem está ali</p></div>
+    <div class="card"><div class="ico">🎯</div><h3>Produto</h3><p>descobrir o que vale construir</p></div>
+  </div>
+  <div class="comecar" style="margin-right:184px">🌱 <strong>Pra começar:</strong> lógica, Python ou JavaScript, e um problema <strong>seu</strong> pra resolver.</div>
+</section>
+
+<!-- 15 DESAFIO -->
+<section class="slide capa centro" data-n="">
+  <img class="ave" style="position:static;transform:none;width:250px;margin:0 auto 18px" src="marca/sabia-01-mascote.png" alt="" />
+  <h1 style="font-size:84px">Agora é com vocês</h1>
+  <p class="lead" style="margin-top:16px">Tentem enganar o Sabiá!<br />A Nathalia digita, e todo mundo vê no telão.</p>
+  <div class="chips">
+    <span class="chip">🤷 uma matéria que não existe</span>
+    <span class="chip">⏪ uma prova que já passou</span>
+    <span class="chip">📅 a tarefa de outro dia</span>
+    <span class="chip">🙃 uma pergunta que não é da escola</span>
+  </div>
+</section>
+
+</body>
+</html>

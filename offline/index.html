@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b7d5b" />
+<title>Escola Exemplo · Assistente</title>
+<style>
+  :root{
+    --brand:#0b7d5b;
+    --brand-2:#0ea272;
+    --bg:#f2f4f5;
+    --ink:#0f1f1a;
+    --muted:#6a7b74;
+    --bubble-me:#0b7d5b;
+    --bubble-bot:#ffffff;
+    --line:#e2e7e5;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);
+    display:flex;justify-content:center;
+  }
+  .phone{
+    width:100%;max-width:440px;height:100dvh;background:var(--bg);
+    display:flex;flex-direction:column;position:relative;overflow:hidden;
+  }
+  /* Header */
+  header{
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    display:flex;align-items:center;gap:12px;flex-shrink:0;box-shadow:0 2px 12px rgba(0,0,0,.08);z-index:5;
+  }
+  .avatar{
+    width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.18);
+    display:grid;place-items:center;font-size:22px;flex-shrink:0;
+  }
+  .h-title{font-weight:700;font-size:16px;line-height:1.1}
+  .h-sub{font-size:12px;opacity:.9;display:flex;align-items:center;gap:5px;margin-top:2px}
+  .dot{width:7px;height:7px;border-radius:50%;background:#7CFFB2;box-shadow:0 0 0 0 rgba(124,255,178,.7);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(124,255,178,.6)}70%{box-shadow:0 0 0 7px rgba(124,255,178,0)}100%{box-shadow:0 0 0 0 rgba(124,255,178,0)}}
+  .gear{margin-left:auto;background:rgba(255,255,255,.15);border:none;color:#fff;width:36px;height:36px;border-radius:10px;font-size:17px;cursor:pointer}
+
+  /* Chat area */
+  .chat{flex:1;overflow-y:auto;padding:16px 14px 8px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+  .row{display:flex;gap:8px;align-items:flex-end;max-width:90%}
+  .row.me{align-self:flex-end;flex-direction:row-reverse}
+  .row.bot{align-self:flex-start}
+  .row > div{min-width:0}
+  .mini{width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:13px;flex-shrink:0}
+  .bubble{padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.42;box-shadow:0 1px 2px rgba(0,0,0,.05);word-wrap:break-word}
+  .me .bubble{background:var(--bubble-me);color:#fff;border-bottom-right-radius:5px}
+  .bot .bubble{background:var(--bubble-bot);color:var(--ink);border-bottom-left-radius:5px}
+  .bubble b{font-weight:700}
+  .time{font-size:10px;color:var(--muted);margin:2px 6px 0}
+  .me .time{text-align:right}
+
+  /* Action card */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:6px;box-shadow:0 1px 3px rgba(0,0,0,.05);width:min(300px,76vw)}
+  .card .k{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+  .grade-line{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
+  .grade-line:last-child{border-bottom:none}
+  .grade-line .v{font-weight:700;font-variant-numeric:tabular-nums}
+  .g-ok{color:#0b7d5b}.g-mid{color:#c98a00}.g-low{color:#c0392b}
+  .receipt{display:flex;flex-direction:column;gap:6px;font-size:13px}
+  .receipt .r{display:flex;justify-content:space-between;gap:10px}
+  .receipt .r span:first-child{color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;gap:5px;background:#e6f6ef;color:#0b7d5b;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+
+  /* typing */
+  .typing{display:flex;gap:4px;padding:12px 14px}
+  .typing i{width:7px;height:7px;background:#b8c4c0;border-radius:50%;animation:bounce 1.3s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-5px);opacity:1}}
+
+  /* Quick replies */
+  .quick{display:flex;gap:8px;padding:6px 14px 4px;overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+  .quick::-webkit-scrollbar{display:none}
+  .chip{white-space:nowrap;background:#fff;border:1px solid var(--line);color:var(--brand);font-size:13px;font-weight:600;padding:8px 13px;border-radius:20px;cursor:pointer;flex-shrink:0}
+  .chip:active{background:#e6f6ef}
+
+  /* Composer */
+  .composer{display:flex;gap:8px;padding:8px 12px calc(env(safe-area-inset-bottom) + 10px);background:#fff;border-top:1px solid var(--line);flex-shrink:0;align-items:flex-end}
+  .composer textarea{flex:1;border:1px solid var(--line);border-radius:20px;padding:10px 14px;font-size:15px;font-family:inherit;resize:none;max-height:100px;outline:none;background:#f7f9f8}
+  .composer textarea:focus{border-color:var(--brand)}
+  .send{width:42px;height:42px;border-radius:50%;border:none;background:var(--brand);color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;display:grid;place-items:center}
+  .send:disabled{opacity:.4}
+
+  /* Settings sheet */
+  .sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.4);display:none;z-index:20}
+  .sheet-bg.on{display:block}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;padding:20px 18px calc(env(safe-area-inset-bottom) + 20px);transform:translateY(100%);transition:transform .25s ease}
+  .sheet.on{transform:translateY(0)}
+  .sheet h3{margin:0 0 4px}
+  .sheet p{margin:0 0 14px;font-size:13px;color:var(--muted)}
+  .sheet label{font-size:12px;font-weight:700;color:var(--ink);display:block;margin:10px 0 5px}
+  .sheet input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:12px;font-size:14px;font-family:inherit;outline:none}
+  .sheet input:focus{border-color:var(--brand)}
+  .sheet .actions{display:flex;gap:10px;margin-top:16px}
+  .btn{flex:1;padding:12px;border-radius:12px;border:none;font-size:14px;font-weight:700;cursor:pointer}
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-ghost{background:#eef1f0;color:var(--ink)}
+  .note{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="phone">
+  <header>
+    <div class="avatar">🎓</div>
+    <div>
+      <div class="h-title">Assistente da Escola</div>
+      <div class="h-sub"><span class="dot"></span> Colégio Exemplo · online</div>
+    </div>
+    <button class="gear" id="gear" title="Configurações">⚙️</button>
+  </header>
+
+  <div class="chat" id="chat"></div>
+
+  <div class="quick" id="quick"></div>
+
+  <div class="composer">
+    <textarea id="input" rows="1" placeholder="Escreva sua mensagem..." autocomplete="off"></textarea>
+    <button class="send" id="send">➤</button>
+  </div>
+
+  <!-- Settings -->
+  <div class="sheet-bg" id="sheetbg"></div>
+  <div class="sheet" id="sheet">
+    <h3>Modo demonstração</h3>
+    <p>Feira de profissões · dados fictícios do Colégio Exemplo.</p>
+    <label>Nome do aluno (aparece nas respostas)</label>
+    <input id="cfgName" placeholder="Ana Beatriz" />
+    <label>Chave de IA (opcional, deixe vazio pra modo offline)</label>
+    <input id="cfgKey" placeholder="Sem chave = respostas locais sem internet" />
+    <div class="actions">
+      <button class="btn btn-ghost" id="cfgReset">Reiniciar conversa</button>
+      <button class="btn btn-primary" id="cfgSave">Salvar</button>
+    </div>
+    <p class="note">Esta é uma simulação para apresentação. Não acessa contas reais, não pede senha e não guarda dados de ninguém. Tudo roda no próprio aparelho.</p>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   BACKEND SIMULADO (escola fictícia)
+   Nada aqui é real. Serve para a demonstração da feira.
+============================================================ */
+const ESCOLA = {
+  aluno: "Ana Beatriz",
+  turma: "3º ano B",
+  notas: {
+    "matemática":  { b1: 8.5, b2: 7.0, b3: 9.0 },
+    "português":   { b1: 9.0, b2: 8.5, b3: 8.0 },
+    "história":    { b1: 6.0, b2: 5.5, b3: 7.5 },
+    "biologia":    { b1: 7.5, b2: 8.0, b3: 9.5 },
+    "física":      { b1: 5.0, b2: 6.5, b3: 6.0 },
+  },
+  trabalhos: [
+    { id: "T-204", materia: "história", titulo: "Ditadura Militar no Brasil", prazo: "30/09", status: "pendente" },
+    { id: "T-198", materia: "biologia", titulo: "Ciclo da água", prazo: "26/09", status: "pendente" },
+  ],
+  avisos: [
+    { data: "23/09", texto: "Reunião de pais e mestres na sexta, 27/09, às 19h." },
+    { data: "22/09", texto: "Feira de profissões dia 24/09 no ginásio. Tragam os projetos!" },
+  ],
+};
+let entregasFeitas = [];
+let pedidosPrazo = [];
+
+/* ============================================================
+   ESTADO / CONFIG
+============================================================ */
+const cfg = {
+  name: localStorage.getItem("ca_name") || ESCOLA.aluno,
+  key:  localStorage.getItem("ca_key")  || "",
+};
+ESCOLA.aluno = cfg.name;
+
+/* ============================================================
+   UI helpers
+============================================================ */
+const chat  = document.getElementById("chat");
+const quick = document.getElementById("quick");
+const input = document.getElementById("input");
+const send  = document.getElementById("send");
+
+function now(){ const d=new Date(); return d.getHours().toString().padStart(2,"0")+":"+d.getMinutes().toString().padStart(2,"0"); }
+function scroll(){ chat.scrollTop = chat.scrollHeight; }
+
+function addMsg(who, html){
+  const row = document.createElement("div");
+  row.className = "row " + who;
+  const mini = who==="bot" ? '<div class="mini">🎓</div>' : "";
+  row.innerHTML = `${mini}<div class="col"><div class="bubble">${html}</div><div class="time">${now()}</div></div>`;
+  chat.appendChild(row); scroll(); return row;
+}
+
+function typing(){
+  const row = document.createElement("div");
+  row.className = "row bot";
+  row.innerHTML = `<div class="mini">🎓</div><div class="bubble" style="padding:0"><div class="typing"><i></i><i></i><i></i></div></div>`;
+  chat.appendChild(row); scroll(); return row;
+}
+
+function classFor(n){ return n>=7 ? "g-ok" : n>=6 ? "g-mid" : "g-low"; }
+
+/* ============================================================
+   AGENTE (regras locais) - entende a intenção e "age"
+============================================================ */
+function media(m){ const n=ESCOLA.notas[m]; return ((n.b1+n.b2+n.b3)/3); }
+
+function detectMateria(t){
+  for(const m of Object.keys(ESCOLA.notas)){
+    if(t.includes(m)) return m;
+    if(m==="matemática" && (t.includes("mat")||t.includes("matematica"))) return m;
+    if(m==="português"  && (t.includes("portug")||t.includes("portu"))) return m;
+    if(m==="história"   && (t.includes("hist"))) return m;
+    if(m==="biologia"   && (t.includes("bio"))) return m;
+    if(m==="física"     && (t.includes("fis"))) return m;
+  }
+  return null;
+}
+
+function respostaLocal(textoRaw){
+  const t = textoRaw.toLowerCase();
+  const nome = ESCOLA.aluno.split(" ")[0];
+
+  // NOTAS
+  if(/nota|boletim|m[eé]dia|desempenho|como.*(vou|estou)|situa/.test(t)){
+    const mat = detectMateria(t);
+    if(mat){
+      const n = ESCOLA.notas[mat], md = media(mat);
+      return {
+        text:`Aqui está seu boletim de <b>${mat}</b>, ${nome}. A média das provas foi <b>${md.toFixed(1)}</b>.`,
+        card:`<div class="k">📊 Boletim · ${mat}</div>
+          <div class="grade-line"><span>1º bimestre</span><span class="v ${classFor(n.b1)}">${n.b1.toFixed(1)}</span></div>
+          <div class="grade-line"><span>2º bimestre</span><span class="v ${classFor(n.b2)}">${n.b2.toFixed(1)}</span></div>
+          <div class="grade-line"><span>3º bimestre</span><span class="v ${classFor(n.b3)}">${n.b3.toFixed(1)}</span></div>
+          <div class="grade-line"><span><b>Média</b></span><span class="v ${classFor(md)}">${md.toFixed(1)}</span></div>`
+      };
+    }
+    // todas as matérias
+    let linhas = Object.keys(ESCOLA.notas).map(m=>{
+      const md = media(m);
+      return `<div class="grade-line"><span>${m}</span><span class="v ${classFor(md)}">${md.toFixed(1)}</span></div>`;
+    }).join("");
+    return { text:`Consultei seu boletim completo, ${nome}. Veja a média por matéria:`,
+             card:`<div class="k">📊 Boletim geral · ${ESCOLA.turma}</div>${linhas}` };
+  }
+
+  // ENTREGAR TRABALHO
+  if(/entreg|enviar.*trabalho|mandar.*trabalho|submeter|upload/.test(t)){
+    const mat = detectMateria(t);
+    const trab = ESCOLA.trabalhos.find(x=> mat ? x.materia===mat : x.status==="pendente");
+    if(trab){
+      trab.status = "entregue";
+      entregasFeitas.push(trab.id);
+      return {
+        text:`Prontinho, ${nome}. Registrei a entrega do seu trabalho de <b>${trab.materia}</b> e avisei o professor.`,
+        card:`<div class="k">✅ Comprovante de entrega</div>
+          <div class="receipt">
+            <div class="r"><span>Protocolo</span><span><b>${trab.id}</b></span></div>
+            <div class="r"><span>Trabalho</span><span>${trab.titulo}</span></div>
+            <div class="r"><span>Matéria</span><span>${trab.materia}</span></div>
+            <div class="r"><span>Enviado em</span><span>${now()} de hoje</span></div>
+            <div class="r"><span>Status</span><span class="badge">✓ Recebido</span></div>
+          </div>`
+      };
+    }
+    return { text:`Você não tem trabalhos pendentes agora, ${nome}. Tudo em dia por aqui. 🎉` };
+  }
+
+  // PEDIR PRAZO / SEGUNDA CHAMADA
+  if(/prazo|adiar|estender|mais tempo|segunda chamada|prorrog|atras|n[aã]o vou conseguir/.test(t)){
+    const mat = detectMateria(t) || "história";
+    const trab = ESCOLA.trabalhos.find(x=>x.materia===mat) || ESCOLA.trabalhos[0];
+    const proto = "P-" + Math.floor(Math.random()*9000+1000);
+    pedidosPrazo.push(proto);
+    return {
+      text:`Entendido, ${nome}. Abri um pedido de prazo para o professor de <b>${trab.materia}</b>. Ele responde por aqui assim que avaliar.`,
+      card:`<div class="k">🕓 Pedido de prazo enviado</div>
+        <div class="receipt">
+          <div class="r"><span>Protocolo</span><span><b>${proto}</b></span></div>
+          <div class="r"><span>Referente a</span><span>${trab.titulo}</span></div>
+          <div class="r"><span>Prazo atual</span><span>${trab.prazo}</span></div>
+          <div class="r"><span>Status</span><span class="badge">⏳ Em análise</span></div>
+        </div>`
+    };
+  }
+
+  // TRABALHOS / TAREFAS pendentes
+  if(/tarefa|trabalho|dever|o que.*fazer|pendent|atividade/.test(t)){
+    const pend = ESCOLA.trabalhos.filter(x=>x.status==="pendente");
+    if(!pend.length) return { text:`Nenhuma tarefa pendente, ${nome}. Aproveita pra descansar. 😌` };
+    let linhas = pend.map(x=>`<div class="grade-line"><span>${x.titulo} <span style="color:var(--muted);font-size:12px">(${x.materia})</span></span><span class="v g-mid">${x.prazo}</span></div>`).join("");
+    return { text:`Você tem <b>${pend.length}</b> trabalho(s) pendente(s), ${nome}:`,
+             card:`<div class="k">📌 Tarefas em aberto</div>${linhas}` };
+  }
+
+  // AVISOS
+  if(/aviso|comunicado|novidade|recado|reuni/.test(t)){
+    let linhas = ESCOLA.avisos.map(a=>`<div class="grade-line"><span>${a.texto}</span><span class="v" style="color:var(--muted);font-size:12px">${a.data}</span></div>`).join("");
+    return { text:`Os últimos avisos da escola, ${nome}:`, card:`<div class="k">📣 Mural de avisos</div>${linhas}` };
+  }
+
+  // FALAR COM PROFESSOR
+  if(/professor|falar com|contato|conversar|d[uú]vida/.test(t)){
+    return { text:`Posso encaminhar sua mensagem para o professor, ${nome}. É só me dizer a matéria e o que você quer perguntar, que eu abro a conversa e ele responde por aqui.` };
+  }
+
+  // SAUDAÇÃO
+  if(/^(oi|ol[aá]|bom dia|boa tarde|boa noite|e a[ií]|opa)/.test(t)){
+    return { text:`Oi, ${nome}! 👋 Sou o assistente do Colégio Exemplo. Posso ver suas <b>notas</b>, mostrar <b>tarefas</b>, <b>entregar trabalhos</b>, pedir <b>prazo</b> ou os <b>avisos</b> da escola. O que você precisa?` };
+  }
+
+  if(/obrigad|valeu|brigad|thanks/.test(t)){
+    return { text:`Por nada, ${nome}! Qualquer coisa é só chamar. 😊` };
+  }
+
+  // fallback
+  return { text:`Posso te ajudar com isso de outras formas, ${nome}. Tenta pedir por exemplo: <b>"minha nota de matemática"</b>, <b>"quais trabalhos estão pendentes"</b>, <b>"entregar meu trabalho de biologia"</b> ou <b>"pedir mais prazo em história"</b>.` };
+}
+
+/* ============================================================
+   IA opcional (se houver chave) - senão usa regras locais
+============================================================ */
+async function pensar(texto){
+  if(!cfg.key){ return respostaLocal(texto); } // modo offline (padrão da feira)
+  // Placeholder de integração: mantém a demo previsível mesmo com chave.
+  // Aqui entraria a chamada ao modelo com as "ferramentas" (consultarNotas, entregarTrabalho...).
+  return respostaLocal(texto);
+}
+
+async function enviar(texto){
+  texto = texto.trim(); if(!texto) return;
+  addMsg("me", texto.replace(/</g,"&lt;"));
+  input.value=""; autoGrow();
+  const t = typing();
+  await new Promise(r=>setTimeout(r, 550 + Math.random()*500));
+  const resp = await pensar(texto);
+  t.remove();
+  const row = addMsg("bot", resp.text);
+  if(resp.card){
+    const c = document.createElement("div");
+    c.className="card"; c.innerHTML = resp.card;
+    row.querySelector(".col").appendChild(c); scroll();
+  }
+  renderQuick();
+}
+
+/* ============================================================
+   Quick replies dinâmicos
+============================================================ */
+function renderQuick(){
+  const opts = [
+    "Minha nota de matemática",
+    "Quais trabalhos estão pendentes?",
+    "Entregar meu trabalho de biologia",
+    "Pedir mais prazo em história",
+    "Avisos da escola",
+  ];
+  quick.innerHTML = opts.map(o=>`<button class="chip">${o}</button>`).join("");
+  quick.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> enviar(b.textContent));
+}
+
+/* ============================================================
+   Composer
+============================================================ */
+function autoGrow(){ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,100)+"px"; }
+input.addEventListener("input", autoGrow);
+input.addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); enviar(input.value); }});
+send.onclick = ()=> enviar(input.value);
+
+/* ============================================================
+   Settings
+============================================================ */
+const sheet=document.getElementById("sheet"), sheetbg=document.getElementById("sheetbg");
+function openSheet(){ document.getElementById("cfgName").value=cfg.name; document.getElementById("cfgKey").value=cfg.key; sheetbg.classList.add("on"); sheet.classList.add("on"); }
+function closeSheet(){ sheetbg.classList.remove("on"); sheet.classList.remove("on"); }
+document.getElementById("gear").onclick=openSheet;
+sheetbg.onclick=closeSheet;
+document.getElementById("cfgSave").onclick=()=>{
+  cfg.name=document.getElementById("cfgName").value.trim()||"Ana Beatriz";
+  cfg.key =document.getElementById("cfgKey").value.trim();
+  localStorage.setItem("ca_name",cfg.name); localStorage.setItem("ca_key",cfg.key);
+  ESCOLA.aluno=cfg.name; closeSheet();
+};
+document.getElementById("cfgReset").onclick=()=>{ chat.innerHTML=""; closeSheet(); boot(); };
+
+/* ============================================================
+   Boot
+============================================================ */
+function boot(){
+  const nome = ESCOLA.aluno.split(" ")[0];
+  addMsg("bot", `Oi, ${nome}! 👋 Sou o assistente do <b>Colégio Exemplo</b>.<br>Posso ver suas <b>notas</b>, mostrar <b>tarefas</b>, <b>entregar trabalhos</b>, pedir <b>prazo</b> e os <b>avisos</b> da escola. Como posso ajudar?`);
+  renderQuick();
+}
+boot();
+</script>
+</body>
+</html>
