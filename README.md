@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="ui/marca/sabia-03-acao.png" width="120" alt="Sabiá, o mascote" />
+  <img src="src/agentes/sabia/marca/sabia-03-acao.png" width="120" alt="Sabiá, o mascote" />
 </p>
 
 <h1 align="center">Sabiá</h1>
@@ -17,6 +17,24 @@ Salesiano Itajaí), para mostrar na prática o que é um agente, e como se sabe 
 ele está certo. Os slides e o roteiro estão em [`docs/`](docs/).
 
 **Somente leitura.** Ele consulta, nunca envia mensagem para professor nem altera nada.
+
+## Rodando
+
+Precisa de **Node 24 ou mais novo** (roda TypeScript direto, sem compilar o
+servidor) e de uma conta do ClassApp que seja sua, ou com autorização de quem é
+dono dela.
+
+```bash
+npm install
+npx playwright install chromium
+npm start
+```
+
+O `npm start` compila a tela, sobe o agente e abre o navegador. Na primeira vez
+aparece um **guia de três passos**: escolher a IA, preencher a conta e fazer o
+primeiro login (o código 2FA é pedido ali mesmo). Nada de editar arquivo.
+
+Se algo não funcionar, `npm run doctor` diz o que falta.
 
 ## O que ele sabe consultar
 
@@ -38,14 +56,14 @@ integrado (SSO) que o próprio ClassApp oferece.
 ```
 pergunta
    │
-   ├── 1. PLANEJAR    o modelo devolve { intencao, raciocinio, ferramentas[] }
+   ├── 1. PLANEJAR    o modelo devolve { intencao, mensagem, ferramentas[] }
    │                  validado por Zod. Só pode pedir ferramenta que existe.
    │
    ├── 2. EXECUTAR    o código roda as ferramentas, na ordem do plano.
    │                  O modelo nunca toca no navegador.
    │
    └── 3. RESPONDER   o modelo devolve { resposta, itens[], fonte }
-                      também validado por Zod.
+                      também validado, e o texto aparece enquanto é escrito.
 ```
 
 **A IA decide, o código age.** E tudo que o código consegue calcular, o código
@@ -53,69 +71,76 @@ calcula: que dia é hoje, se uma prova já passou, qual coluna do boletim é a
 média, de onde veio o dado. Cada uma dessas regras existe porque o modelo já
 errou nela. A história está em [`docs/arquitetura.md`](docs/arquitetura.md).
 
-## Rodando
+## Qual IA responde
 
-Precisa de **Node 24 ou mais novo** (roda TypeScript direto, sem build) e de
-uma conta do ClassApp que seja sua, ou com autorização de quem é dono dela.
+Escolha na tela, a qualquer hora, pelo seletor da caixa de pergunta.
+
+| motor | precisa de | acertos* |
+|---|---|---|
+| OpenAI (gpt-6-luna, gpt-4.1-mini) | chave de API | 7/7 e 6/7 |
+| Claude pela assinatura | Claude Code logado na máquina | 6/7 |
+| Codex pela assinatura | Codex logado na máquina (lento para ao vivo) | 7/7 |
+| Gemini | chave de API | não medido |
+| Sem IA | nada: regras de palavra-chave, ainda lendo os dados reais | plano B |
+
+\* os casos do `npm run bench`. Os motores por assinatura usam o login que você
+já tem no Claude Code ou no Codex, sem chave de API.
+
+## Um núcleo, um pacote
+
+O projeto é um **harness genérico** (`src/nucleo`) vestido por um **pacote de
+agente** (`src/agentes/sabia`), no mesmo desenho dos agentes da Plow e da
+Instinct. O pacote declara quem é o agente, o que ele sabe consultar, o que o
+primeiro uso pergunta e como ele faz login. Trocar o pacote troca o agente:
 
 ```bash
-npm install
-npx playwright install chromium
-cp .env.example .env      # preencha conta, nome e chave da IA
-npm start                 # http://localhost:8123
+SABIA_AGENTE=outro npm start   # roda src/agentes/outro
 ```
 
-Deixe a janela do navegador do agente ao lado do chat: é o efeito da
-demonstração, a plateia vê ele entrando nos sistemas.
+Como criar uma capacidade nova, ou um agente inteiro, está em
+[`docs/arquitetura.md`](docs/arquitetura.md).
 
-### Variáveis (`.env`)
+## Onde ficam os dados
 
-| variável | para que serve |
-|---|---|
-| `CLASSAPP_PHONE` / `CLASSAPP_PASSWORD` | conta do ClassApp (login por celular) |
-| `ALUNO_NOME` / `ALUNO_SERIE` / `ESCOLA_NOME` | quem é a dona da conta, para o prompt e o topo da tela |
-| `LLM_PROVIDER` | `openai` (padrão), `gemini`, ou `local` (sem IA) |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | chave e modelo da OpenAI (padrão `gpt-6-luna`) |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | alternativa, se trocar o provedor |
-| `HOST` | `127.0.0.1` (padrão): só esta máquina acessa |
-| `PRAZO_2FA_MS` | quanto esperar alguém digitar o código 2FA (padrão 3 min) |
-| `SHOW_BROWSER` | `1` mostra o navegador, `0` roda escondido |
-| `PORT` | porta do servidor (padrão 8123) |
+Tudo que é da pessoa mora em **`~/.sabia`**, fora do repositório:
 
-Os três motores (`openai`, `gemini`, `local`) obedecem os mesmos contratos Zod.
-O `local` não chama IA nenhuma e continua lendo os dados reais: é o plano B se
-a internet ou a chave falharem no dia.
+- `config.json`: chaves, conta e nome (permissão 600)
+- `navegador/`: a sessão, com o "confiar neste dispositivo" de 30 dias
+- `conversas/`: as conversas salvas da barra lateral
+
+Variáveis de ambiente vencem o que está lá (e a tela não consegue trocá-las).
+Ainda dá para usar um `.env` na raiz, no formato do [`.env.example`](.env.example):
+na primeira execução ele é importado para o `~/.sabia`.
 
 ## O código de verificação (2FA)
 
-A sessão fica no perfil `.profile-chrome/` (fora do git), e o ClassApp permite
-**confiar no dispositivo por 30 dias**, então normalmente o código não é pedido.
+O ClassApp permite **confiar no dispositivo por 30 dias**, então normalmente o
+código não é pedido. Se a sessão expirar, o agente **para sozinho na tela de
+verificação** e pede os 6 dígitos na própria conversa. A dona da conta digita o
+código que chegou no celular dela, e ele segue. Se ninguém digitar dentro do
+prazo, ele desiste e avisa. Nada é contornado.
 
-Se a sessão expirar, o agente **para sozinho na tela de verificação** e abre um
-campo no chat pedindo os 6 dígitos. A dona da conta digita o código que chegou
-no celular dela, e ele segue. Se ninguém digitar dentro do prazo, ele desiste e
-avisa. A autenticação é sempre feita pela pessoa, na hora. Nada é contornado.
-
-## Testes
+## Desenvolvendo
 
 ```bash
-npm run check      # tipos (tsc), 0 erros
-npm test           # 72 testes, sem rede e sem navegador, menos de 1s
-npm run test:real  # as 5 capacidades contra os sistemas reais (precisa do .env)
-npm run bench      # compara modelos no trabalho real do agente
+npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
+npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
+npm run check      # tipos do servidor e da tela
+npm test           # 96 testes, sem rede e sem navegador, menos de 1s
+npm run test:real  # as 5 capacidades contra os sistemas reais
+npm run bench      # compara motores no trabalho real do agente
 ```
 
 `npm test` cobre a lógica que já errou de verdade neste projeto, com funções
 puras e dados fictícios no formato real das telas:
 
 - qual coluna do boletim é a média (e não uma prova solta do outro semestre)
-- conceito (`CE`) continua conceito, não vira número
-- rodapé de assinatura e legenda não entram como disciplina
 - `passou` do calendário, e "evento de hoje não é passado"
 - hoje e amanhã na grade, sem depender do modelo
 - "Não houve" e "Sem tarefa." no diário não viram tarefa
 - contratos recusam ferramenta e intenção inventadas
-- o motor local escolhe a capacidade certa para cada pergunta
+- o laço: argumentos chegam à ferramenta, a fonte vem do plano, parar no meio para
+- o núcleo com um agente de brinquedo, ponta a ponta pelo servidor
 
 `npm run test:real` confere **invariantes**, não valores (nota muda, formato não).
 
@@ -140,21 +165,24 @@ cada palavra do filtro.
   real e responde notas sem pedir senha. `HOST=0.0.0.0` abriria para a rede, e
   qualquer um no wifi leria os dados da conta.
 - **Somente leitura.** Nenhuma capacidade altera nada.
-- **Nenhum dado pessoal no código.** Nome, conta e chaves vivem no `.env`, que
-  não vai para o git. Os testes usam dados fictícios no formato real.
-- As telas dos sistemas mostram dados de pessoas reais. Para exibir em público,
-  use uma conta com autorização da dona, como foi feito aqui.
+- **Nenhum dado pessoal no código.** Nome, conta e chaves vivem no `~/.sabia`.
+  Os testes usam dados fictícios no formato real.
+- **No telão, o mínimo.** Os dados lidos de cada fonte ficam recolhidos; o
+  boletim inteiro só aparece se alguém abrir.
 
 ## Estrutura
 
 ```
-src/            o agente (veja docs/arquitetura.md)
-  capacidades/  uma capacidade por arquivo
-ui/             o chat, com o mascote que muda conforme o que ele faz
-test/           unidade (sem rede) e integração (sistemas reais)
-docs/           slides, roteiro da apresentação, arquitetura, mascote
-scripts/        gerar o PDF dos slides, o mascote, e o benchmark de modelos
-offline/        primeira versão, simulação com dados fictícios (plano B sem internet)
+src/
+  cli.ts          ponto de entrada (iniciar, doctor)
+  nucleo/         o harness: laço, motores, protocolo, servidor, config
+  agentes/sabia/  o pacote: persona, capacidades, login, mascote
+web/              a tela (React + shadcn, no padrão do blocks.so)
+ui/               a tela antiga, em /classico, até a nova ser aprovada
+test/             unidade (sem rede) e integração (sistemas reais)
+docs/             slides, roteiro da apresentação, arquitetura, mascote
+scripts/          PDF dos slides, geração do mascote, benchmark de motores
+offline/          primeira versão, simulação com dados fictícios
 ```
 
 ## Licença

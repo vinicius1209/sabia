@@ -95,7 +95,7 @@ Fale antes de perguntarem:
 > Por isso vocês não usam do computador de vocês: qualquer um na rede veria as
 > notas dela."
 
-No 13, seja honesto sobre o limite: ele não lembra de ontem e não atende a escola
+No 13, seja honesto sobre o limite: cada conversa nova começa do zero (ele não junta o que aprendeu em uma com a outra) e ele não atende a escola
 inteira. Isso passa mais confiança do que prometer tudo.
 
 ### Profissões (slide 14)
@@ -134,14 +134,15 @@ responder a pergunta de segurança antes de ela ser feita. Se ninguém digitar e
 
 | problema | solução |
 |---|---|
-| internet ruim para a IA | `LLM_PROVIDER=local` · continua lendo os sistemas de verdade, sem IA |
+| internet ruim para a IA | no seletor da caixa de pergunta, troque para **Sem IA** · continua lendo os sistemas de verdade |
+| a chave da OpenAI falhou | troque para **Claude pela assinatura** no mesmo seletor |
 | sem internet nenhuma | `offline/index.html` · simulação com dados fictícios |
 | o 2FA não chega | siga pelos slides 6 a 14 e volte à demo depois |
 | ele erra uma pergunta | "boa, anota aí, é assim que eu acho bug" |
 
 ## Checklist antes de cada ciclo
 
-- [ ] `npm run check` e `npm test` passando
+- [ ] `npm run doctor` com tudo marcado, e `npm test` passando
 - [ ] rodar as 4 perguntas da demo uma vez (a primeira é mais lenta, aquece o navegador)
 - [ ] janela do navegador ao lado do chat, as duas visíveis no projetor
 - [ ] celular da dona da conta por perto (código 2FA)

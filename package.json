@@ -13,16 +13,24 @@
   "engines": {
     "node": ">=24"
   },
+  "workspaces": [
+    "web"
+  ],
   "scripts": {
-    "start": "node src/server.ts",
-    "check": "tsc --noEmit",
-    "bench": "node scripts/bench.ts",
-    "test": "node --test 'test/unidade.test.ts' 'test/doisfatores.test.ts' 'test/agente.test.ts'",
+    "start": "node src/cli.ts",
+    "prestart": "npm run build:web --silent",
+    "doctor": "node src/cli.ts doctor",
+    "dev": "SABIA_ABRIR=0 node --watch src/cli.ts",
+    "dev:web": "npm run dev -w @sabia/web",
+    "build:web": "npm run build -w @sabia/web",
+    "check": "tsc --noEmit && npm run typecheck -w @sabia/web",
+    "test": "node --test 'test/unidade.test.ts' 'test/doisfatores.test.ts' 'test/agente.test.ts' 'test/nucleo.test.ts'",
     "test:real": "node --test 'test/integracao.test.ts'",
+    "bench": "node scripts/bench.ts",
     "pdf": "node scripts/pdf.mjs"
   },
   "dependencies": {
-    "@google/genai": "^0.14.0",
+    "@google/genai": "^2.24.0",
     "express": "^4.21.2",
     "openai": "^7.23.0",
     "playwright": "^1.50.0",

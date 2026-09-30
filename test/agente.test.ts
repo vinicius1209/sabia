@@ -4,92 +4,104 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { criarAgente, type Motor, type Entrada, type Evento } from "../src/agent.ts";
-import type { Plano } from "../src/contracts.ts";
+import sabia from "../src/agentes/sabia/index.ts";
+import { criarAgente, PerguntaInterrompida } from "../src/nucleo/agente.ts";
+import type { Motor } from "../src/nucleo/motores/index.ts";
+import type { Entrada } from "../src/nucleo/prompt.ts";
+import type { EventoDoTurno } from "../src/nucleo/protocolo.ts";
+import { criarRegistro, type Plano } from "../src/nucleo/registro.ts";
 
-function motorFalso(plano: Plano) {
+const registro = criarRegistro(sabia.capacidades);
+
+function motorFalso(plano: Plano, pedacos: string[] = []) {
   const recebido: Entrada[] = [];
   const motor: Motor = {
     nome: "falso",
-    async plano(e) { recebido.push(e); return plano; },
-    async resposta(e) { recebido.push(e); return { resposta: "ok", itens: [], fonte: "nenhuma" }; },
+    async plano(e) {
+      recebido.push(e);
+      return plano;
+    },
+    async resposta(e, aoEscrever) {
+      recebido.push(e);
+      for (const p of pedacos) aoEscrever?.(p);
+      return { resposta: "ok", itens: [], fonte: "nenhuma" };
+    },
   };
   return { motor, recebido };
 }
 
 const PLANO_NOTA: Plano = {
   intencao: "notas",
-  raciocinio: "ver o boletim",
+  mensagem: "ver o boletim",
   ferramentas: [{ nome: "ler_boletim", args: {} }],
 };
 
-function agenteCom(motor: Motor, executar = async () => ({ formato: "tabela", notas: [] })) {
-  const eventos: Evento[] = [];
+function agenteCom(
+  motor: Motor,
+  executar: (nome: string, args: unknown) => Promise<unknown> = async () => ({ formato: "tabela", notas: [] }),
+  preparar: () => Promise<void> = async () => {}
+) {
+  const eventos: EventoDoTurno[] = [];
   const agente = criarAgente({
-    emitir: (e) => eventos.push(e),
-    request2faCode: async () => "000000",
-    motor,
-    garantirSessao: async () => {},
-    executarFerramenta: executar as never,
+    registro,
+    motor: () => motor,
+    preparar,
+    executarFerramenta: executar,
   });
-  return { agente, eventos };
+  const perguntar = (pergunta: string, extra: Partial<Parameters<typeof agente.perguntar>[0]> = {}) =>
+    agente.perguntar({ pergunta, emitir: (e) => eventos.push(e), ...extra });
+  return { perguntar, eventos };
 }
 
 describe("laco do agente", () => {
-  test("conversas diferentes NAO compartilham historico", async () => {
+  test("o historico da conversa chega ao modelo, e so as 4 ultimas trocas", async () => {
     const { motor, recebido } = motorFalso(PLANO_NOTA);
-    const { agente } = agenteCom(motor);
+    const { perguntar } = agenteCom(motor);
+    const historico = Array.from({ length: 6 }, (_, i) => ({ pergunta: `p${i}`, intencao: "notas" }));
 
-    await agente.perguntar("Qual minha nota de matematica?", "aluno-A");
-    await agente.perguntar("E em fisica?", "aluno-B");
+    await perguntar("E em fisica?", { historico });
 
-    const planoDoB = recebido.filter((e) => e.instrucao.startsWith("Monte"))[1];
-    assert.deepEqual(planoDoB.historico, [], "o aluno B herdou a conversa do aluno A");
+    assert.deepEqual(recebido[0].historico?.map((h) => h.pergunta), ["p2", "p3", "p4", "p5"]);
   });
 
-  test("a mesma conversa LEMBRA a pergunta anterior", async () => {
+  test("sem historico, o modelo recebe lista vazia (conversas nao se misturam)", async () => {
     const { motor, recebido } = motorFalso(PLANO_NOTA);
-    const { agente } = agenteCom(motor);
-
-    await agente.perguntar("Qual minha nota de matematica?", "aluno-A");
-    await agente.perguntar("E em fisica?", "aluno-A");
-
-    const segundo = recebido.filter((e) => e.instrucao.startsWith("Monte"))[1];
-    assert.equal(segundo.historico?.[0]?.pergunta, "Qual minha nota de matematica?");
+    const { perguntar } = agenteCom(motor);
+    await perguntar("Qual minha nota?");
+    assert.deepEqual(recebido[0].historico, []);
   });
 
   test("passa os ARGUMENTOS do plano para a ferramenta", async () => {
     // este era o bug: o agente sempre chamava com {}
-    const plano: Plano = {
+    const { motor } = motorFalso({
       intencao: "tarefas",
-      raciocinio: "diario de segunda",
+      mensagem: "diario de segunda",
       ferramentas: [{ nome: "ler_diario", args: { data: "28/09/2026" } }],
-    };
-    const { motor } = motorFalso(plano);
+    });
     const chamadas: unknown[] = [];
-    const { agente } = agenteCom(motor, (async (_nome: string, args: unknown) => {
+    const { perguntar } = agenteCom(motor, async (_nome, args) => {
       chamadas.push(args);
       return { data: "28/09/2026", disciplinas: [] };
-    }) as never);
+    });
 
-    await agente.perguntar("Que tarefa passaram na segunda?", "x");
+    await perguntar("Que tarefa passaram na segunda?");
     assert.deepEqual(chamadas, [{ data: "28/09/2026" }]);
   });
 
   test("a fonte vem do plano, nao da opiniao do modelo", async () => {
     const { motor } = motorFalso(PLANO_NOTA); // o motor falso responde fonte "nenhuma"
-    const { agente } = agenteCom(motor);
-    const r = await agente.perguntar("nota?", "x");
+    const { perguntar } = agenteCom(motor);
+    const r = await perguntar("nota?");
     assert.equal(r.fonte, "Portal Activesoft");
   });
 
   test("ferramenta que falha nao derruba a resposta, e avisa a tela", async () => {
     const { motor } = motorFalso(PLANO_NOTA);
-    const { agente, eventos } = agenteCom(motor, (async () => {
+    const { perguntar, eventos } = agenteCom(motor, async () => {
       throw new Error("portal fora do ar");
-    }) as never);
+    });
 
-    const r = await agente.perguntar("nota?", "x");
+    const r = await perguntar("nota?");
     assert.equal(r.resposta, "ok");
     const fim = eventos.find((e) => e.tipo === "ferramenta_fim");
     assert.ok(fim && fim.tipo === "ferramenta_fim");
@@ -97,11 +109,64 @@ describe("laco do agente", () => {
     assert.match(fim.resumo, /portal fora do ar/);
   });
 
+  test("os dados lidos vao junto no evento, para a tela montar o cartao", async () => {
+    const { motor } = motorFalso(PLANO_NOTA);
+    const dados = { formato: "tabela", notas: [{ disciplina: "Física", media: "8,5", faltas: "6", valores: [] }] };
+    const { perguntar, eventos } = agenteCom(motor, async () => dados);
+    await perguntar("nota?");
+    const fim = eventos.find((e) => e.tipo === "ferramenta_fim");
+    assert.ok(fim && fim.tipo === "ferramenta_fim");
+    assert.deepEqual(fim.dados, dados);
+  });
+
   test("conversa simples nao abre ferramenta nenhuma", async () => {
-    const { motor } = motorFalso({ intencao: "conversa", raciocinio: "oi", ferramentas: [] });
+    const { motor } = motorFalso({ intencao: "conversa", mensagem: "oi", ferramentas: [] });
     let abriu = false;
-    const { agente } = agenteCom(motor, (async () => { abriu = true; return {}; }) as never);
-    await agente.perguntar("Oi!", "x");
+    const { perguntar } = agenteCom(motor, async () => {
+      abriu = true;
+      return {};
+    });
+    await perguntar("Oi!");
     assert.equal(abriu, false);
+  });
+
+  test("o texto chega aos pedacos enquanto o modelo escreve", async () => {
+    const { motor } = motorFalso(PLANO_NOTA, ["Sua", "Sua nota", "Sua nota é 8,5"]);
+    const { perguntar, eventos } = agenteCom(motor);
+    await perguntar("nota?");
+    const textos = eventos.flatMap((e) => (e.tipo === "texto" ? [e.parcial] : []));
+    assert.deepEqual(textos, ["Sua", "Sua nota", "Sua nota é 8,5"]);
+  });
+
+  test("prepara as fontes ANTES de planejar (login antes de tudo)", async () => {
+    const ordem: string[] = [];
+    const { motor } = motorFalso(PLANO_NOTA);
+    const original = motor.plano;
+    motor.plano = async (e) => {
+      ordem.push("plano");
+      return original(e);
+    };
+    const { perguntar } = agenteCom(motor, undefined, async () => {
+      ordem.push("preparar");
+    });
+    await perguntar("nota?");
+    assert.deepEqual(ordem, ["preparar", "plano"]);
+  });
+
+  test("parar no meio nao executa mais nada", async () => {
+    const { motor } = motorFalso(PLANO_NOTA);
+    let executou = false;
+    const parar = new AbortController();
+    const original = motor.plano;
+    motor.plano = async (e) => {
+      parar.abort(); // a pessoa clicou em parar enquanto o modelo planejava
+      return original(e);
+    };
+    const { perguntar } = agenteCom(motor, async () => {
+      executou = true;
+      return {};
+    });
+    await assert.rejects(perguntar("nota?", { sinal: parar.signal }), PerguntaInterrompida);
+    assert.equal(executou, false);
   });
 });

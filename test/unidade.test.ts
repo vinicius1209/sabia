@@ -6,15 +6,18 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { offsetDaMedia, ehDisciplina, montarNotas } from "../src/capacidades/boletim.ts";
-import { marcarEventos } from "../src/capacidades/calendario.ts";
-import { montarHorarios } from "../src/capacidades/horarios.ts";
-import { montarDiario } from "../src/capacidades/diario.ts";
-import { CAPACIDADES, descricaoDasFontes, escolherLocal, ChamadaFerramenta, argsPadrao } from "../src/capacidades/index.ts";
-import { agora, cabecalhoTemporal, tabelaDeDias } from "../src/contexto.ts";
-import { Plano, Resposta, limparTexto, limparResposta } from "../src/contracts.ts";
-import { motorLocal } from "../src/local.ts";
-import { iniciais, quemAtende } from "../src/perfil.ts";
+import { offsetDaMedia, ehDisciplina, montarNotas } from "../src/agentes/sabia/capacidades/boletim.ts";
+import { marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
+import { montarHorarios } from "../src/agentes/sabia/capacidades/horarios.ts";
+import { montarDiario } from "../src/agentes/sabia/capacidades/diario.ts";
+import sabia, { quemAtende } from "../src/agentes/sabia/index.ts";
+import { criarRegistro, limparTexto } from "../src/nucleo/registro.ts";
+import { agora, cabecalhoTemporal, tabelaDeDias } from "../src/nucleo/contexto.ts";
+import { motorLocal } from "../src/nucleo/motores/local.ts";
+
+const registro = criarRegistro(sabia.capacidades);
+const { capacidades: CAPACIDADES, descricaoDasFontes, escolherLocal, ChamadaFerramenta, argsPadrao, Plano, Resposta, limparResposta } =
+  registro;
 
 /* Cabecalho real do Activesoft (uma linha so, como vem raspado). */
 const CABECALHO = [
@@ -144,12 +147,12 @@ describe("contexto temporal", () => {
 
 describe("contratos", () => {
   test("Plano recusa ferramenta inventada", () => {
-    const r = Plano.safeParse({ intencao: "notas", raciocinio: "x", ferramentas: ["hackear_escola"] });
+    const r = Plano.safeParse({ intencao: "notas", mensagem: "x", ferramentas: ["hackear_escola"] });
     assert.equal(r.success, false);
   });
 
   test("Plano recusa intencao inventada", () => {
-    const r = Plano.safeParse({ intencao: "apagar_tudo", raciocinio: "x", ferramentas: [] });
+    const r = Plano.safeParse({ intencao: "apagar_tudo", mensagem: "x", ferramentas: [] });
     assert.equal(r.success, false);
   });
 
@@ -180,7 +183,7 @@ describe("contratos", () => {
 });
 
 describe("motor local (plano B da feira)", () => {
-  const m = motorLocal();
+  const m = motorLocal({ registro });
   const casos: [string, string[]][] = [
     ["Qual minha nota de matematica?", ["ler_boletim"]],
     ["Como estou no boletim?", ["ler_boletim"]],
@@ -454,8 +457,8 @@ describe("executar com parametros ausentes", () => {
   test("{} vale como 'tudo no padrao' e nao e recusado", async () => {
     // regressao pega pelo teste de integracao: depois de trocar .optional()
     // por .nullable(), chamar o diario com {} passou a falhar
-    const { executar } = await import("../src/capacidades/index.ts");
-    const { default: diario } = await import("../src/capacidades/diario.ts");
+    const { executar } = registro;
+    const diario = registro.capacidade("ler_diario");
     const original = diario.ler;
     let recebeu: unknown = "nada";
     (diario as { ler: unknown }).ler = async (args: unknown) => {
@@ -471,23 +474,22 @@ describe("executar com parametros ausentes", () => {
   });
 });
 
-describe("perfil da dona da conta (vem do .env, nunca do codigo)", () => {
-  test("iniciais do avatar", () => {
-    assert.equal(iniciais("Ana Beatriz Souza"), "AB");
-    assert.equal(iniciais("  joana "), "J");
-    assert.equal(iniciais(""), "EU");
+describe("perfil da dona da conta (vem da config local, nunca do codigo)", () => {
+  const cfg = (valores: Record<string, string>) => (k: string) => valores[k] ?? "";
+
+  test("sem config, o prompt nao cita nome nenhum", () => {
+    assert.equal(quemAtende(cfg({})), "Voce e o assistente escolar de uma aluna.");
   });
 
-  test("sem .env, o prompt nao cita nome nenhum", () => {
-    const antes = { ...process.env };
-    delete process.env.ALUNO_NOME; delete process.env.ALUNO_SERIE; delete process.env.ESCOLA_NOME;
-    try {
-      assert.equal(quemAtende(), "Voce e o assistente escolar de uma aluna.");
-      process.env.ALUNO_NOME = "Ana";
-      process.env.ESCOLA_NOME = "Colégio Exemplo";
-      assert.equal(quemAtende(), "Voce e o assistente escolar de Ana, aluna do Colégio Exemplo.");
-    } finally {
-      process.env = antes;
-    }
+  test("com config, cita nome e escola", () => {
+    assert.equal(
+      quemAtende(cfg({ ALUNO_NOME: "Ana", ESCOLA_NOME: "Colégio Exemplo" })),
+      "Voce e o assistente escolar de Ana, aluna do Colégio Exemplo."
+    );
+  });
+
+  test("a saudacao usa so o primeiro nome", () => {
+    assert.match(sabia.saudacao(cfg({ ALUNO_NOME: "Ana Beatriz" })), /^Oi, Ana!/);
+    assert.match(sabia.saudacao(cfg({})), /^Oi! /);
   });
 });

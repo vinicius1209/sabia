@@ -9,22 +9,25 @@
  */
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
+import path from "node:path";
+import { carregarConfig, migrarNavegador } from "../src/nucleo/config.ts";
 
-for (const l of fs.readFileSync(".env", "utf8").split("\n")) {
-  const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-}
+// a mesma config e a mesma sessão do app (~/.sabia): sem refazer login
+const raiz = path.resolve(import.meta.dirname, "..");
+carregarConfig(raiz);
+migrarNavegador(raiz);
 process.env.SHOW_BROWSER ??= "0";
 
-const { ensureLoggedIn, closeBrowser } = await import("../src/browser.mjs");
-const { executar } = await import("../src/capacidades/index.ts");
-const { Saida: SaidaBoletim } = await import("../src/capacidades/boletim.ts");
-const { Saida: SaidaCalendario } = await import("../src/capacidades/calendario.ts");
-const { Saida: SaidaComunicados } = await import("../src/capacidades/comunicados.ts");
-const { Saida: SaidaHorarios } = await import("../src/capacidades/horarios.ts");
-const { Saida: SaidaDiario } = await import("../src/capacidades/diario.ts");
-const { agora } = await import("../src/contexto.ts");
+const { ensureLoggedIn, closeBrowser } = await import("../src/agentes/sabia/browser.mjs");
+const { default: sabia } = await import("../src/agentes/sabia/index.ts");
+const { criarRegistro } = await import("../src/nucleo/registro.ts");
+const { executar } = criarRegistro(sabia.capacidades);
+const { Saida: SaidaBoletim } = await import("../src/agentes/sabia/capacidades/boletim.ts");
+const { Saida: SaidaCalendario } = await import("../src/agentes/sabia/capacidades/calendario.ts");
+const { Saida: SaidaComunicados } = await import("../src/agentes/sabia/capacidades/comunicados.ts");
+const { Saida: SaidaHorarios } = await import("../src/agentes/sabia/capacidades/horarios.ts");
+const { Saida: SaidaDiario } = await import("../src/agentes/sabia/capacidades/diario.ts");
+const { agora } = await import("../src/nucleo/contexto.ts");
 
 const semPasso = () => {};
 
@@ -34,7 +37,7 @@ before(async () => {
     request2faCode: async () => {
       throw new Error(
         "A sessao expirou e este teste nao tem como digitar o 2FA. " +
-          "Rode o app uma vez (npm start), faca o login, e tente de novo."
+          "Rode o app uma vez (npm start), faca o login pela tela, e tente de novo."
       );
     },
   });

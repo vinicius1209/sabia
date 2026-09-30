@@ -6,6 +6,27 @@ Um agente de IA que **opera software que não foi feito para ele**. Não tem API
 não tem integração: ele abre o ClassApp e o Portal Activesoft num navegador de
 verdade, navega, lê a tela e responde.
 
+## Núcleo e pacote
+
+O projeto tem duas metades, como os agentes da Plow e da Instinct: um **harness**
+genérico e um **pacote** que diz quem é o agente.
+
+```
+┌─────────────────────────────── núcleo (src/nucleo) ───────────────────────────────┐
+│  laço de 3 fases · motores de IA · protocolo · servidor · config e conversas      │
+│  não sabe o que é escola                                                           │
+└──────────────────────────────────────┬────────────────────────────────────────────┘
+                                       │ veste
+┌──────────────────────────── pacote (src/agentes/sabia) ───────────────────────────┐
+│  persona · 5 capacidades · campos do primeiro uso · login com 2FA · mascote        │
+└────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+O pacote é um objeto só, declarado com `definirAgente()` em
+`src/agentes/sabia/index.ts`. O teste `test/nucleo.test.ts` monta um agente de
+brinquedo (previsão do tempo, sem nada de escola) e roda ele ponta a ponta pelo
+servidor: é a prova de que o núcleo é genérico de verdade.
+
 ## As 5 capacidades de hoje
 
 | ferramenta | o que lê | onde |
@@ -23,14 +44,16 @@ Todas são **somente leitura**. Nenhuma altera nada.
 ```
 pergunta
    │
-   ├── 1. PLANEJAR    o modelo devolve { intencao, raciocinio, ferramentas[] }
+   ├── 0. PREPARAR    o pacote garante a sessão (login; pode parar pedindo o 2FA)
+   │
+   ├── 1. PLANEJAR    o modelo devolve { intencao, mensagem, ferramentas[] }
    │                  validado por Zod. Só pode pedir ferramenta que existe.
    │
-   ├── 2. EXECUTAR    NÓS rodamos, na ordem do plano.
+   ├── 2. EXECUTAR    o CÓDIGO roda as ferramentas, na ordem do plano.
    │                  O modelo nunca toca no navegador.
    │
-   └── 3. RESPONDER   o modelo devolve { resposta, itens[], fonte }
-                      também validado por Zod.
+   └── 3. RESPONDER   o modelo devolve { resposta, itens[], fonte }, também
+                      validado. O texto chega na tela enquanto é escrito.
 ```
 
 **A regra que rege tudo: o modelo decide, o código age.**
@@ -48,25 +71,117 @@ calcular, o código calcula.** O modelo erra em coisas determinísticas.
 | qual coluna é a média | **código** (`offsetDaMedia`) | modelo pegava a nota errada |
 | de onde veio o dado | **código** (a partir do plano) | modelo respondia "nenhuma" |
 
+O laço não guarda estado. O histórico de cada conversa mora num arquivo e
+chega de fora a cada pergunta, então sobrevive a reiniciar o servidor.
+
+## Os motores
+
+A IA fica atrás de uma interface com dois métodos, `plano()` e `resposta()`.
+Qualquer motor serve, desde que devolva o formato validado.
+
+| motor | como | acertos* | tempo por chamada |
+|---|---|---|---|
+| OpenAI gpt-6-luna | API, structured outputs | 7/7 | ~2,5 s |
+| OpenAI gpt-4.1-mini | API, structured outputs | 6/7 | ~1,4 s |
+| Claude Sonnet | **assinatura**, `claude -p --json-schema` | 6/7 | ~3,5 s |
+| Claude Haiku | **assinatura**, `claude -p --json-schema` | 6/7 | ~5 s |
+| Codex | **assinatura**, `codex exec --output-schema` | 7/7 | ~9 s |
+| Gemini | API, `responseJsonSchema` | não medido | |
+| Sem IA | regras de palavra-chave | plano B | instantâneo |
+
+\* os 7 casos do `npm run bench`, set/2026.
+
+Os motores por assinatura usam o Claude Code ou o Codex logados na máquina, sem
+chave de API. Cada chamada roda numa pasta vazia, sem ferramentas e sem MCP:
+senão a CLI carregaria o `CLAUDE.md` de quem estiver por perto e viraria um
+agente de código dentro do nosso agente.
+
+Dois achados dessa integração:
+- O filtro de segurança do Claude às vezes **recusava** o plano, e o detalhe
+  dizia `reasoning_extraction`: um campo de saída chamado `raciocinio` parecia
+  tentativa de extrair o raciocínio interno do modelo. O campo virou `mensagem`
+  (é só uma frase de status para a tela), e o adaptador tenta de novo uma vez.
+- O validador da CLI do Claude não conhece o `$schema` do draft 2020-12, que é o
+  padrão do Zod: o schema vai no formato draft-7.
+
+## O protocolo
+
+`src/nucleo/protocolo.ts` define tudo que o servidor e a tela trocam. A tela
+importa esses tipos direto do servidor: se um lado mudar, o outro não compila.
+
+Cada pergunta é um `POST /api/perguntar` cuja resposta é um fluxo de eventos
+(SSE), na ordem em que acontecem:
+
+```
+conversa → passo* → plano → (ferramenta_inicio → passo* → ferramenta_fim)* → texto* → resposta
+                                                   2fa_pedido / 2fa_fim podem aparecer no meio
+                                                   erro encerra no lugar da resposta
+```
+
+O `ferramenta_fim` leva os dados lidos, e a tela monta com eles o cartão daquela
+capacidade. Os pedaços de `texto` só existem ao vivo; o que fica salvo na
+conversa é a resposta final.
+
+## Onde ficam os dados
+
+Tudo que é da pessoa mora em `~/.sabia` (ou `SABIA_HOME`), fora do repositório:
+
+| o quê | onde | permissão |
+|---|---|---|
+| chaves, conta, nome | `config.json` | 600 |
+| sessão do navegador (o "confiar neste dispositivo") | `navegador/` | 700 |
+| conversas, com os dados lidos | `conversas/<id>.json` | 600 |
+
+Precedência da configuração: variável de ambiente de verdade, depois o
+`config.json`, depois o `.env` do projeto. Na primeira execução, o `.env` e a
+sessão antiga (`.profile-chrome/`) são copiados para lá, para ninguém refazer
+login nem 2FA.
+
+## A tela
+
+`web/` é um app React com Vite, Tailwind e shadcn no estilo `base-nova`, seguindo
+os blocos de chat do [blocks.so](https://github.com/ephraimduncan/blocks)
+(`chat-03` para a conversa e a barra lateral, `ai-02` para o seletor de motor).
+
+- **O mascote é o indicador de estado**: pensando, buscando, esperando o código,
+  pronto, confuso. É o que o slide 4 da apresentação ensina a ler.
+- **A trilha recolhe** no fim ("Trabalhou por 27s · 1 fonte") e abre com cada
+  passo, agrupado sob a ferramenta que o deu.
+- **Cada capacidade tem um cartão próprio** (tabela de notas, linha do tempo de
+  provas, grade por dia), fechado por padrão: no telão, o boletim inteiro só
+  aparece se alguém abrir. Capacidade sem cartão cai num genérico, e um cartão
+  que quebre com um dado inesperado também.
+- **Primeiro uso guiado**: escolher a IA, preencher a conta, conectar com o 2FA
+  na própria tela. Nada de editar arquivo.
+
 ## Os arquivos, por responsabilidade
 
 ```
 src/
-  capacidades/     UMA CAPACIDADE POR ARQUIVO. Cada uma traz o contrato Zod do
-                   que devolve, a lógica PURA de interpretação (testável sem
-                   navegador), a descrição que o modelo lê, a navegação, e o
-                   plano B sem IA.
-    index.ts       O registro. Deriva dele o enum de ferramentas, o prompt,
-                   a validação e o roteamento do motor local.
-    _portal.ts     O que as capacidades do Portal Activesoft compartilham.
-  contracts.ts     Os contratos do AGENTE: o formato do plano e da resposta.
-  agent.ts         As 3 fases + os adaptadores de modelo (OpenAI, Gemini, local).
-  browser.mjs      Sessão, login, 2FA com pessoa no meio, auto-recuperação.
-  doisfatores.ts   A espera pelo código 2FA, com prazo e cancelamento.
-  contexto.ts      A única fonte de "agora" (data, hora, fuso da escola).
-  perfil.ts        Quem é a dona da conta. Vem do .env, nunca do código.
-  local.ts         Motor sem IA, plano B se a internet cair.
-  server.ts        HTTP + eventos (SSE) para a interface acompanhar cada passo.
+  cli.ts                 ponto de entrada: iniciar ou doctor
+  nucleo/
+    agente.ts            o laço de 3 fases
+    registro.ts          deriva das capacidades: contratos, prompt, execução, plano B
+    capacidade.ts        o formato de uma capacidade (defineCapacidade)
+    pacote.ts            o formato de um pacote de agente (definirAgente)
+    prompt.ts            prompt de sistema e da pergunta
+    protocolo.ts         os eventos e respostas entre servidor e tela
+    servidor.ts          HTTP + fluxos SSE; veste o pacote que receber
+    config.ts            ~/.sabia, precedência, migração do .env
+    conversas.ts         as conversas salvas
+    doisfatores.ts       a espera pelo código 2FA, com prazo e cancelamento
+    contexto.ts          a única fonte de "agora" (data, hora, fuso)
+    motores/             openai, gemini, cli (assinatura), local, e o catálogo
+  agentes/sabia/
+    index.ts             O PACOTE: persona, campos, marca, preparar()
+    capacidades/         uma capacidade por arquivo
+    browser.mjs          sessão, login, 2FA com pessoa no meio, auto-recuperação
+    marca/               as poses do mascote
+web/src/
+  hooks/use-sabia.ts     o estado da tela
+  lib/turno.ts           eventos → o que a tela mostra (ao vivo e ao reabrir)
+  components/chat/       conversa, trilha, composer, seletor de motor, 2FA
+  agentes/sabia/         os cartões das 5 capacidades
 ```
 
 A separação que mais importa: dentro de cada capacidade, **a função `montarX()`
@@ -79,11 +194,9 @@ na parte pura, e por isso tem teste rápido. O navegador fica isolado no `ler()`
 
 **Uma capacidade = um arquivo.** Antes isso exigia editar 7 lugares espalhados, e
 dava para registrar a ferramenta e esquecer de descrevê-la ao modelo (aí ela
-existia e ele nunca escolhia). Hoje é assim:
+existia e ele nunca escolhia).
 
 ### Passo 0 · Olhar a tela antes de escrever código
-
-Duas lições que economizam horas:
 
 - **Leia o `href` do menu, não adivinhe a URL.** Chutar `horarios.asp` deu 404;
   o link certo (`quadroHorarios_selecionarTurma.asp?IdAluno=N`) estava no menu.
@@ -91,34 +204,31 @@ Duas lições que economizam horas:
 - **Veja se é tabela ou texto.** O boletim e os horários são tabelas (use
   `lerTabelas()`). O diário de classe é texto corrido em blocos.
 
-### Passo 1 · Criar `src/capacidades/<nome>.ts`
-
-O arquivo tem quatro partes, nesta ordem:
+### Passo 1 · Criar `src/agentes/sabia/capacidades/<nome>.ts`
 
 ```ts
-export const Saida = z.object({ ... })        // 1. o contrato do que devolve
+export const Saida = z.object({ ... })         // 1. o contrato do que devolve
 
-export function montarX(bruto) { ... }         // 2. lógica PURA (testável)
+export function montarX(bruto) { ... }          // 2. lógica PURA (testável)
 
 export default defineCapacidade({
-  nome, rotulo, fonte, icone,
-  descricao: "...",                            // 3. o que o MODELO lê
+  nome, rotulo, fonte, icone, intencao,
+  descricao: "...",                             // 3. o que o MODELO lê
   entrada: z.object({ ... }),
   saida: Saida,
-  async ler(args, passo) { ... },              //    a navegação
-  local: { sinais, intencao, raciocinio, responder }, // 4. o plano B sem IA
+  async ler(args, passo) { ... },               //    a navegação
+  resumir: (d) => "...",                        //    a linha do cartão
+  local: { sinais, raciocinio, responder },     // 4. o plano B sem IA
 });
 ```
 
-A `descricao` mora aqui de propósito: ela **é** o trecho do prompt. Não tem como
-registrar a capacidade e esquecer de contar ao modelo.
+A `descricao` mora aqui de propósito: ela **é** o trecho do prompt.
 
-### Passo 2 · Uma linha no registro
+### Passo 2 · Uma linha no pacote
 
 ```ts
-// src/capacidades/index.ts
-import diario from "./diario.ts";
-export const CAPACIDADES = [comunicados, calendario, boletim, horarios, diario];
+// src/agentes/sabia/index.ts
+capacidades: [comunicados, calendario, boletim, horarios, diario, nova],
 ```
 
 **Acabou.** A partir daqui é tudo derivado sozinho:
@@ -126,29 +236,47 @@ export const CAPACIDADES = [comunicados, calendario, boletim, horarios, diario];
 | derivado | de onde |
 |---|---|
 | o enum que o modelo pode pedir | `nome` |
+| os assuntos possíveis do plano | `intencao` |
 | a descrição das fontes no prompt | `descricao` |
-| o cartão na tela | `rotulo`, `fonte`, `icone` |
+| a linha da ferramenta na trilha | `rotulo`, `fonte`, `icone`, `resumir` |
 | validação de entrada e saída | `entrada`, `saida` |
 | o roteamento do plano B | `local.sinais` (pontuação forte/fraco) |
 
-### Passo 3 · Testar
+### Passo 3 (opcional) · Um cartão na tela
+
+Sem nada, os dados aparecem no cartão genérico. Para um cartão próprio, crie o
+componente em `web/src/agentes/sabia/artefatos.tsx` e registre com `cartao()`.
+O tipo dos dados vem do seu `Saida`: se o contrato mudar, o cartão não compila.
+
+### Passo 4 · Testar
 
 ```bash
-npm run check   # o compilador cobra o que faltou
+npm run check   # o compilador cobra o que faltou, no servidor e na tela
 npm test        # a lógica pura, em milissegundos
 npm start       # a real
 ```
 
-Escreva os testes da lógica pura **antes** de abrir o navegador. Os 4 testes do
-diário rodam em milissegundos e cobrem o caso que mais importa: `"Não houve"`
-não pode virar tarefa.
+---
+
+# Como criar outro agente
+
+1. Crie `src/agentes/<id>/index.ts` exportando um `definirAgente({...})`: nome,
+   persona, saudação, sugestões, campos do primeiro uso, capacidades, marca, e
+   `preparar()` se as fontes precisarem de login.
+2. Rode com `SABIA_AGENTE=<id> npm start`.
+3. Cartões próprios são opcionais (`web/src/agentes/<id>/`).
+
+O `test/nucleo.test.ts` tem um pacote completo de exemplo, em menos de 50 linhas.
 
 ## O que falta para virar produto
 
 Honestidade sobre os limites atuais:
 
 - **Plano de 1 passo.** Ele não replaneja se uma ferramenta falha.
-- **Memória curta.** O histórico morre quando o servidor reinicia.
-- **Uma pergunta por vez.** O servidor serializa.
+- **Memória por conversa.** Uma conversa nova começa do zero; ele não junta o
+  que aprendeu em uma com a outra.
+- **Uma pergunta por vez.** O navegador é um só, então o servidor serializa.
 - **Somente leitura.** Escrever exigiria confirmação humana antes de cada ação.
 - **Um usuário.** Sem multiusuário, sem controle de custo por pessoa.
+- **`npx sabia` ainda não.** O Node não roda TypeScript de dentro de
+  `node_modules`; publicar no npm exigiria compilar antes.

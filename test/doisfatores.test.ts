@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { criarPortao2FA, DoisFatoresCancelado } from "../src/doisfatores.ts";
+import { criarPortao2FA, DoisFatoresCancelado } from "../src/nucleo/doisfatores.ts";
 
 describe("portao do codigo 2FA", () => {
   test("entrega o codigo digitado para quem esta esperando", async () => {

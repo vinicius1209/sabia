@@ -2,21 +2,25 @@
  * Benchmark dos modelos no trabalho REAL do agente, sem navegador.
  *   npm run bench
  *   MODELOS="gpt-6-luna,gpt-5.6-luna" RODADAS=3 npm run bench
+ *   MODELOS="gpt-6-luna,claude:haiku,claude:sonnet,codex:" npm run bench
  *   DIFICIL=1 npm run bench
  *
  * Usa o MESMO motor, o mesmo prompt e o mesmo contrato da produção
- * (criarMotor). A versão anterior tinha uma cópia própria do prompt, que
+ * (criarMotor + montarSistema). A versão anterior tinha uma cópia própria do prompt, que
  * ficou para trás quando surgiram horários e diário: comparava modelos com
  * um prompt diferente do que roda de verdade.
  */
-import fs from "node:fs";
-import { criarMotor } from "../src/agent.ts";
-import type { Plano } from "../src/contracts.ts";
+import path from "node:path";
+import sabia from "../src/agentes/sabia/index.ts";
+import { carregarConfig, lerConfig } from "../src/nucleo/config.ts";
+import { criarMotor } from "../src/nucleo/motores/index.ts";
+import { montarSistema } from "../src/nucleo/prompt.ts";
+import { criarRegistro, type Plano } from "../src/nucleo/registro.ts";
 
-for (const l of (fs.existsSync(".env") ? fs.readFileSync(".env", "utf8") : "").split("\n")) {
-  const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-}
+// as mesmas chaves do app (~/.sabia/config.json, ou o .env na primeira vez)
+carregarConfig(path.resolve(import.meta.dirname, ".."));
+const registro = criarRegistro(sabia.capacidades);
+const deps = { registro, sistema: () => montarSistema(sabia, registro, lerConfig) };
 
 const CANDIDATOS = (process.env.MODELOS || "gpt-6-luna,gpt-5.6-luna,gpt-4.1-mini").split(",");
 const RODADAS = Number(process.env.RODADAS || 1);
@@ -83,9 +87,10 @@ const CASOS = process.env.DIFICIL ? DIFICEIS : FACEIS;
 
 const nomes = (p: Plano) => p.ferramentas.map((f) => f.nome);
 
-for (const modelo of CANDIDATOS) {
-  process.env.OPENAI_MODEL = modelo;
-  const motor = criarMotor("openai");
+for (const candidato of CANDIDATOS) {
+  // "gpt-6-luna" (OpenAI), ou "provedor:modelo": claude:haiku, codex:, gemini:gemini-2.5-flash
+  const [provedor, modelo] = candidato.includes(":") ? candidato.split(":") : ["openai", candidato];
+  const motor = criarMotor(deps, { id: provedor, modelo });
   const t0 = Date.now();
   let acertos = 0, total = 0;
   const falhas = new Set<string>();
@@ -121,9 +126,9 @@ for (const modelo of CANDIDATOS) {
       }
     }
     const seg = ((Date.now() - t0) / 1000).toFixed(1);
-    console.log(`${modelo.padEnd(15)} ${acertos}/${total} acertos | ${seg}s`);
+    console.log(`${candidato.padEnd(15)} ${acertos}/${total} acertos | ${seg}s`);
     falhas.forEach((f) => console.log(`                  x ${f}`));
   } catch (e) {
-    console.log(`${modelo.padEnd(15)} ERRO: ${String(e instanceof Error ? e.message : e).slice(0, 90)}`);
+    console.log(`${candidato.padEnd(15)} ERRO: ${String(e instanceof Error ? e.message : e).slice(0, 90)}`);
   }
 }
