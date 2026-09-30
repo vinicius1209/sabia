@@ -129,7 +129,7 @@ prazo, ele desiste e avisa. Nada é contornado.
 npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
 npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
 npm run check      # tipos do servidor e da tela
-npm test           # 111 testes, sem rede e sem navegador, menos de 1s
+npm test           # 125 testes, sem rede e sem navegador, menos de 1s
 npm run test:real  # as 5 capacidades contra os sistemas reais
 npm run bench      # compara motores no trabalho real do agente
 ```
@@ -154,7 +154,7 @@ para conferir que a suíte acusa:
 
 | sabotagem | resultado |
 |---|---|
-| a média vira o primeiro número da linha | 3 testes falham |
+| a média vira o primeiro número da linha | 4 testes falham |
 | as faltas de um semestre no lugar das do ano | 1 teste falha |
 | inverter a lógica de "já passou" | 2 testes falham |
 | tirar uma palavra do filtro de rodapé | **nenhum falhava** |
@@ -162,6 +162,27 @@ para conferir que a suíte acusa:
 A última linha achou um teste fraco: o caso de rodapé passava por causa do
 limite de tamanho, e não do filtro de palavras. Hoje existe um caso curto para
 cada palavra do filtro.
+
+## Quando a escola mudar uma página
+
+O Sabiá lê sistemas que não foram feitos para ele, então um dia uma tela vai
+mudar. A regra é: **ele pode deixar de funcionar, mas nunca funcionar errado.**
+
+- **Lê pelo significado, não pela posição.** O boletim é lido pelo nome das
+  colunas: se a escola acrescentar uma "P3", ele continua lendo certo, sem mudar
+  código (tem teste para isso).
+- **Nunca adivinha.** Página que ele não reconhece vira "não consegui ler com
+  segurança", com o motivo; nunca "vazio" (que viraria "amanhã não tem aula") e
+  nunca um palpite. O boletim ainda confere os valores: nota acima de 10 não
+  existe, então coluna deslocada é pega mesmo com o cabeçalho certo.
+- **Avisa quando muda.** A forma de cada página (nomes de colunas, marcadores,
+  nunca valores) fica em `~/.sabia/estruturas.json`. Quando muda, a tela mostra
+  um aviso até alguém conferir.
+- **Confira antes de apresentar:** `npm run doctor -- --fontes` entra em cada
+  fonte de verdade e diz se todas foram lidas com segurança.
+
+E se a escola **trocar de sistema**, escreve-se uma capacidade nova que devolve
+o mesmo contrato: tela, prompt e cartões continuam iguais.
 
 ## Segurança e privacidade
 

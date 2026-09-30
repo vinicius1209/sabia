@@ -23,10 +23,14 @@ const { carregarConfig, salvarConfig, lerConfig, caminhos } = await import("../s
 const conversas = await import("../src/nucleo/conversas.ts");
 const { criarServidor } = await import("../src/nucleo/servidor.ts");
 const { motorEscolhido } = await import("../src/nucleo/motores/index.ts");
+const { conferirEstrutura, aceitarEstrutura, mudancas } = await import("../src/nucleo/estruturas.ts");
 
 after(() => fs.rmSync(HOME, { recursive: true, force: true }));
 
 /* ------------------- um agente que não é de escola ------------------- */
+
+/** a forma da "página" da estação: o teste troca para simular a fonte mudando */
+let formaDaEstacao = "colunas: temperatura | chuva";
 
 const clima = defineCapacidade({
   nome: "ler_clima",
@@ -37,8 +41,9 @@ const clima = defineCapacidade({
   descricao: "a previsão do tempo de hoje, com temperatura e chuva.",
   entrada: z.object({}),
   saida: z.object({ temperatura: z.number(), chuva: z.boolean() }),
-  ler: async (_args, passo) => {
+  ler: async (_args, passo, estrutura) => {
     passo("Olhando o céu");
+    estrutura?.(formaDaEstacao);
     return { temperatura: 23, chuva: false };
   },
   resumir: (d) => `${d.temperatura} graus`,
@@ -85,6 +90,17 @@ describe("registro generico", () => {
 
   test("capacidade repetida e recusada na hora de montar", () => {
     assert.throws(() => criarRegistro([clima, clima]), /duas vezes/);
+  });
+
+  test("dado fora do contrato NAO chega ao modelo: a ferramenta falha", async () => {
+    const torta = defineCapacidade({
+      ...clima,
+      nome: "ler_torto",
+      // a "pagina" mudou e a leitura devolveu outra coisa
+      ler: async () => ({ temperatura: "vinte e tres" }) as never,
+    });
+    const r2 = criarRegistro([torta]);
+    await assert.rejects(r2.executar("ler_torto", {}, () => {}), /formato que eu não reconheço/);
   });
 });
 
@@ -175,6 +191,41 @@ describe("motor automatico (o padrao: assinatura antes de chave)", () => {
     comEnv({ LLM_PROVIDER: "openai", OPENAI_MODEL: "gpt-4.1-mini" }, () => {
       assert.deepEqual(motorEscolhido(so("claude")), { id: "openai", modelo: "gpt-4.1-mini", automatico: false });
     });
+  });
+});
+
+/* ----------------------- impressão digital ----------------------- */
+
+describe("impressao digital da forma de cada fonte", () => {
+  test("primeira vez vira referencia; igual nao avisa; diferente avisa e o aviso fica", () => {
+    assert.equal(conferirEstrutura("fonte_a", "colunas: A | B"), "nova");
+    assert.equal(conferirEstrutura("fonte_a", "colunas: A | B"), "igual");
+    assert.equal(conferirEstrutura("fonte_a", "colunas: A | NOVA | B", new Date("2026-10-12T10:00:00Z")), "mudou");
+    assert.equal(conferirEstrutura("fonte_a", "colunas: A | NOVA | B", new Date("2026-10-13T10:00:00Z")), "mudou");
+    const m = mudancas().find((x) => x.capacidade === "fonte_a")!;
+    assert.equal(m.desde, "2026-10-12T10:00:00.000Z", "o 'desde' e a primeira vez que a forma nova apareceu");
+    assert.equal(m.antes, "colunas: A | B");
+  });
+
+  test("se a pagina voltar ao que era, o aviso some sozinho", () => {
+    conferirEstrutura("fonte_b", "x");
+    conferirEstrutura("fonte_b", "y");
+    assert.ok(mudancas().some((x) => x.capacidade === "fonte_b"));
+    assert.equal(conferirEstrutura("fonte_b", "x"), "igual");
+    assert.ok(!mudancas().some((x) => x.capacidade === "fonte_b"));
+  });
+
+  test("aceitar faz a forma nova virar a referencia", () => {
+    conferirEstrutura("fonte_c", "velha");
+    conferirEstrutura("fonte_c", "nova");
+    assert.equal(aceitarEstrutura("fonte_c"), true);
+    assert.equal(conferirEstrutura("fonte_c", "nova"), "igual");
+    assert.equal(aceitarEstrutura("fonte_c"), false, "nada para aceitar");
+  });
+
+  test("so a forma e guardada, e o arquivo e 0600", () => {
+    const f = path.join(HOME, "estruturas.json");
+    assert.equal(fs.statSync(f).mode & 0o777, 0o600);
   });
 });
 
@@ -288,6 +339,23 @@ describe("servidor com o pacote de brinquedo e o motor sem IA", () => {
     assert.equal(segunda[0].id, id);
     const salva = await (await fetch(`${base}/api/conversas/${id}`)).json();
     assert.equal(salva.turnos.length, 2);
+  });
+
+  test("a fonte mudou de forma: aparece no estado, avisa na trilha, e pode ser aceita", async () => {
+    formaDaEstacao = "colunas: temperatura | chuva";
+    await perguntar({ pergunta: "Vai ter chuva?" });
+    formaDaEstacao = "colunas: temperatura | umidade | chuva";
+    const eventos = await perguntar({ pergunta: "E a chuva agora?" });
+    assert.ok(eventos.some((e) => e.tipo === "passo" && /mudou de formato/.test(String(e.mensagem))));
+
+    let estado = await (await fetch(`${base}/api/estado`)).json();
+    assert.deepEqual(estado.mudancas.map((m: { capacidade: string }) => m.capacidade), ["ler_clima"]);
+    assert.equal(estado.mudancas[0].rotulo, "Previsão do tempo");
+
+    const r = await fetch(`${base}/api/estruturas/ler_clima/aceitar`, { method: "POST" });
+    estado = await r.json();
+    assert.deepEqual(estado.mudancas, []);
+    assert.equal((await fetch(`${base}/api/estruturas/nao_existe/aceitar`, { method: "POST" })).status, 404);
   });
 
   test("caminho que nao e API cai na tela", async () => {

@@ -12,7 +12,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { carregarConfig, home, lerConfig, migrarNavegador } from "./nucleo/config.ts";
+import net from "node:net";
+import { conferirEstrutura, formasConhecidas, mudancas } from "./nucleo/estruturas.ts";
 import { disponibilidade, motorEscolhido } from "./nucleo/motores/index.ts";
+import { criarRegistro } from "./nucleo/registro.ts";
 import type { PacoteDeAgente } from "./nucleo/pacote.ts";
 import { criarServidor } from "./nucleo/servidor.ts";
 
@@ -124,5 +127,80 @@ async function doctor() {
   for (const m of await disponibilidade()) {
     linhas.push(`${ok(m.disponivel)} ${m.nome}${m.motivo ? `: ${m.motivo}` : ""}`);
   }
+  const dia = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const conhecidas = formasConhecidas();
+  const mudou = new Map(mudancas().map((m) => [m.capacidade, m]));
+  linhas.push(`\n  Formato das fontes (a forma da página, conferida a cada leitura)`);
+  for (const c of pacote.capacidades) {
+    const m = mudou.get(c.nome);
+    if (m) linhas.push(`⚠ ${c.rotulo}: mudou de formato em ${dia(m.desde)}`);
+    else if (conhecidas[c.nome]) linhas.push(`✓ ${c.rotulo}: igual ao conhecido (visto em ${dia(conhecidas[c.nome].vistaEm)})`);
+    else linhas.push(`· ${c.rotulo}: ainda não lido`);
+  }
   console.log(`\n  ${pacote.nome} · diagnóstico\n\n${linhas.map((l) => (l.startsWith("\n") ? l : `  ${l}`)).join("\n")}\n`);
+
+  if (process.argv.includes("--fontes")) await conferirFontes();
+  else console.log("  Para entrar em cada fonte de verdade e conferir: npm run doctor -- --fontes\n");
+}
+
+/** A porta do app está em uso? (ele segura o perfil do navegador) */
+function appAberto(): Promise<boolean> {
+  const porta = Number(process.env.PORT || 8123);
+  return new Promise((ok) => {
+    const s = net.connect(porta, "127.0.0.1");
+    s.once("connect", () => (s.destroy(), ok(true)));
+    s.once("error", () => ok(false));
+  });
+}
+
+/**
+ * Entra em cada fonte de verdade, lê com os argumentos padrão e confere a
+ * forma da página. É o comando para rodar na véspera de uma apresentação.
+ */
+async function conferirFontes() {
+  if (await appAberto()) {
+    console.log(`  Feche o ${pacote.nome} antes: ele usa a mesma sessão do navegador que esta conferência.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.env.SHOW_BROWSER ??= "0";
+  const registro = criarRegistro(pacote.capacidades);
+  console.log("  Conferindo as fontes de verdade (pode levar um minuto e meio)...\n");
+  try {
+    await pacote.preparar?.({
+      passo: () => {},
+      pedirCodigo: async () => {
+        throw new Error("A sessão expirou e pediu o código de verificação: entre uma vez pela tela (npm start).");
+      },
+    });
+  } catch (e) {
+    console.log(`  ✗ Não consegui entrar: ${e instanceof Error ? e.message : String(e)}\n`);
+    process.exitCode = 1;
+    await pacote.encerrar?.();
+    return;
+  }
+  let falhas = 0;
+  for (const c of pacote.capacidades) {
+    let forma = "";
+    try {
+      const dados = await registro.executar(c.nome, registro.argsPadrao(c.nome), () => {}, (d) => {
+        forma = conferirEstrutura(c.nome, d);
+      });
+      const indisponivel = (dados as { formato?: string; motivo?: string }).formato === "indisponivel";
+      if (indisponivel) {
+        falhas++;
+        console.log(`  ✗ ${c.rotulo}: ${(dados as { motivo: string }).motivo}`);
+      } else if (forma === "mudou") {
+        console.log(`  ⚠ ${c.rotulo}: leu, mas a página mudou de formato. Confira as respostas.`);
+      } else {
+        console.log(`  ✓ ${c.rotulo}: ${registro.resumir(c.nome, dados)}`);
+      }
+    } catch (e) {
+      falhas++;
+      console.log(`  ✗ ${c.rotulo}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  await pacote.encerrar?.();
+  console.log(falhas ? `\n  ${falhas} fonte(s) com problema.\n` : "\n  Todas as fontes lidas com segurança.\n");
+  if (falhas) process.exitCode = 1;
 }

@@ -6,9 +6,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { colunasDoBoletim, ehDisciplina, extrairLegenda, LAYOUT_CONHECIDO, montarNotas, type Nota } from "../src/agentes/sabia/capacidades/boletim.ts";
+import { colunasDoBoletim, conferirNotas, ehDisciplina, extrairLegenda, interpretarBoletim, LAYOUT_CONHECIDO, montarNotas, type Nota } from "../src/agentes/sabia/capacidades/boletim.ts";
 import { marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
-import { montarHorarios } from "../src/agentes/sabia/capacidades/horarios.ts";
+import { acharTabelas, montarHorarios } from "../src/agentes/sabia/capacidades/horarios.ts";
 import { montarDiario } from "../src/agentes/sabia/capacidades/diario.ts";
 import sabia, { quemAtende } from "../src/agentes/sabia/index.ts";
 import { criarRegistro, limparTexto } from "../src/nucleo/registro.ts";
@@ -162,6 +162,71 @@ describe("boletim: cada coluna com o nome certo", () => {
   test("a propria linha de cabecalho nao entra como disciplina", () => {
     assert.equal(ehDisciplina("Disciplinas"), false);
     assert.equal(ehDisciplina("T1"), false);
+  });
+});
+
+describe("boletim: se a escola mudar a tabela, recusa em vez de adivinhar", () => {
+  const lida = (grupos = GRUPOS, siglas = SIGLAS, linhas = [FISICA, MATEMATICA, PORTUGUES]) => ({
+    grupos, siglas, linhas, rodape: "T1 - Trabalho 1",
+  });
+
+  test("com a tabela conhecida, le normalmente", () => {
+    const r = interpretarBoletim(lida());
+    assert.equal(r.formato, "tabela");
+  });
+
+  test("sem tabela na pagina: indisponivel, e NAO manda o texto cru (que tem nome e nascimento)", () => {
+    const r = interpretarBoletim(null);
+    assert.equal(r.formato, "indisponivel");
+    assert.deepEqual(Object.keys(r).sort(), ["colunasEncontradas", "formato", "motivo"]);
+  });
+
+  // a escola acrescenta uma "P3" no 1o semestre
+  const GRUPOS_P3 = GRUPOS.map((g) => (g.rotulo === "1º SEM" ? { ...g, colspan: 10 } : g));
+  const SIGLAS_P3 = ["T1", "T2", "SIM", "P1", "P2", "P3", ...SIGLAS.slice(5)];
+
+  test("coluna NOVA com dados coerentes: continua lendo certo, sozinho, pelo nome", () => {
+    // mesma Fisica, agora com um 7,0 na P3: a media continua sendo a da coluna MED
+    const fisicaP3 = [...FISICA.slice(0, 6), "7,0", ...FISICA.slice(6)];
+    const r = interpretarBoletim(lida(GRUPOS_P3, SIGLAS_P3, [fisicaP3]));
+    assert.equal(r.formato, "tabela");
+    if (r.formato !== "tabela") return;
+    assert.equal(r.notas[0].media, "8,5");
+    assert.equal(r.notas[0].faltasTotal, "9");
+    assert.ok(r.notas[0].semestre1.avaliacoes.some((a) => a.sigla === "P3" && a.valor === "7,0"));
+  });
+
+  test("cabecalho e linhas desencontrados (coluna deslocada): nunca vira tabela, e nenhum valor vaza", () => {
+    // o cabecalho ganhou P3, mas as linhas nao: tudo depois dela deslocaria uma casa
+    const r = interpretarBoletim(lida(GRUPOS_P3, SIGLAS_P3));
+    if (r.formato === "tabela") {
+      assert.fail(`leu uma tabela deslocada como se fosse boa: ${JSON.stringify(r.notas[0])}`);
+    }
+    assert.doesNotMatch(JSON.stringify(r), /8,5|7,3|6,4|\b17\b/, "valor de nota vazou no indisponivel");
+  });
+
+  test("cabecalho renomeado: indisponivel, dizendo o motivo", () => {
+    const grupos = GRUPOS.map((g) => (g.rotulo === "1º SEM" ? { ...g, rotulo: "1º TRIMESTRE" } : g));
+    const r = interpretarBoletim(lida(grupos));
+    assert.equal(r.formato, "indisponivel");
+    if (r.formato === "indisponivel") {
+      assert.match(r.motivo, /mudou de formato/);
+      assert.ok(r.colunasEncontradas.includes("1º TRIMESTRE"));
+    }
+  });
+
+  test("a conferencia de valores pega coluna trocada: nota acima de 10 nao existe", () => {
+    const [mat] = montarNotas([MATEMATICA]);
+    assert.deepEqual(conferirNotas([mat]), []);
+    assert.equal(conferirNotas([{ ...mat, media: "16" }]).length, 1, "16 (faltas) no lugar da media");
+    assert.equal(conferirNotas([{ ...mat, media: "Cursando" }]).length, 1);
+    assert.equal(conferirNotas([{ ...mat, faltasTotal: "7,3" }]).length, 1, "nota no lugar das faltas");
+    assert.deepEqual(conferirNotas([]), ["nenhuma disciplina na tabela"]);
+  });
+
+  test("conceito (CE) e sem media ainda (-) passam na conferencia", () => {
+    const [ed] = montarNotas([EDFISICA]);
+    assert.deepEqual(conferirNotas([ed]), []);
   });
 });
 
@@ -363,7 +428,6 @@ describe("motor local (plano B da feira)", () => {
           formato: "tabela",
           notas: [nota("Física", "8,5"), nota("História", "9,1")],
           legenda: [],
-          colunasConferidas: true,
         },
       },
     });
@@ -427,6 +491,11 @@ describe("horarios: grade da semana", () => {
     const domingo = new Date(2026, 8, 27);
     const { amanha } = montarHorarios([DICIONARIO, GRADE], domingo);
     assert.equal(amanha, "Segunda");
+  });
+
+  test("acha a grade e o dicionario pelo cabecalho; sem a grade, a leitura recusa", () => {
+    assert.ok(acharTabelas([DICIONARIO, GRADE]).grade);
+    assert.equal(acharTabelas([DICIONARIO]).grade, undefined);
   });
 
   test("sem a tabela de grade, devolve vazio sem quebrar", () => {

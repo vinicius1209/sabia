@@ -59,16 +59,24 @@ export const Nota = z.object({
 export type Nota = z.infer<typeof Nota>;
 
 export const Saida = z.union([
-  z.object({ formato: z.literal("texto"), conteudo: z.string() }),
   z.object({
     formato: z.literal("tabela"),
     notas: z.array(Nota),
     /** a legenda oficial do rodapé do boletim, como a escola escreveu */
     legenda: z.array(z.string()),
-    /** false = o cabeçalho não bateu e as colunas vieram do layout conhecido */
-    colunasConferidas: z.boolean(),
+  }),
+  /**
+   * A página não pôde ser lida com segurança (mudou de formato, ou os valores
+   * não fazem sentido). Não traz NENHUM valor: só o motivo e os nomes das
+   * colunas que apareceram, para quem for consertar.
+   */
+  z.object({
+    formato: z.literal("indisponivel"),
+    motivo: z.string(),
+    colunasEncontradas: z.array(z.string()),
   }),
 ]);
+export type Saida = z.infer<typeof Saida>;
 
 /* --------------------------- lógica pura --------------------------- */
 
@@ -80,7 +88,12 @@ export interface Coluna {
 
 const PARCIAIS = ["T1", "T2", "SIM", "P1", "P2", "RS", "AJUSTE"];
 
-/** O layout medido em set/2026, para quando o cabeçalho não puder ser lido. */
+/**
+ * O layout medido em set/2026. É REFERÊNCIA (documentação e testes), não
+ * reserva: se o cabeçalho real não bater, a leitura recusa em vez de assumir
+ * que as colunas continuam no mesmo lugar. Uma coluna nova no meio deslocaria
+ * tudo, e a "média" viraria as faltas sem erro nenhum.
+ */
 export const LAYOUT_CONHECIDO: Coluna[] = [
   { grupo: "Disciplinas", sigla: "" },
   ...["1º SEM", "2º SEM"].flatMap((grupo) =>
@@ -102,7 +115,7 @@ export const LAYOUT_CONHECIDO: Coluna[] = [
  * Monta os nomes das colunas a partir dos dois níveis do cabeçalho.
  * Célula com rowspan 2 é uma coluna só; com colspan N, pega as N siglas de
  * baixo. Devolve null se o resultado não tiver as colunas que o resto
- * precisa: aí vale o layout conhecido, e a saída avisa.
+ * precisa: aí o boletim fica indisponível, com o motivo.
  */
 export function colunasDoBoletim(
   grupos: { rotulo: string; colspan: number; rowspan: number }[],
@@ -211,6 +224,72 @@ export function extrairLegenda(texto: string): string[] {
   return [...new Set(out)];
 }
 
+/** Nota de 0 a 10 com vírgula, conceito da legenda, ou "-" (sem média ainda). */
+const MEDIA_VALIDA = /^(\d{1,2}([,.]\d{1,2})?|CE|CS|CP|NC|-)$/;
+const PARCIAL_VALIDA = /^(\d{1,2}([,.]\d{1,2})?|CE|CS|CP|NC|2CH)$/;
+const numero = (v: string) => Number(v.replace(",", "."));
+
+/**
+ * Segunda trava, depois do cabeçalho: os VALORES fazem sentido? Se uma coluna
+ * deslocar, "16" (faltas) cai no lugar da média, e nota acima de 10 não
+ * existe. Pega o deslocamento mesmo quando o cabeçalho parece certo.
+ */
+export function conferirNotas(notas: Nota[]): string[] {
+  if (!notas.length) return ["nenhuma disciplina na tabela"];
+  const problemas: string[] = [];
+  for (const n of notas) {
+    const nota = (v: string) => /^\d/.test(v) && numero(v) > 10;
+    if (!MEDIA_VALIDA.test(n.media) || nota(n.media)) problemas.push(`${n.disciplina}: média "${n.media}"`);
+    if (!/^(\d{1,3}|-)$/.test(n.faltasTotal)) problemas.push(`${n.disciplina}: faltas "${n.faltasTotal}"`);
+    for (const a of [...n.semestre1.avaliacoes, ...n.semestre2.avaliacoes]) {
+      if (!PARCIAL_VALIDA.test(a.valor) || nota(a.valor)) problemas.push(`${n.disciplina}: ${a.sigla} "${a.valor}"`);
+    }
+  }
+  return problemas;
+}
+
+export interface BoletimLido {
+  grupos: { rotulo: string; colspan: number; rowspan: number }[];
+  siglas: string[];
+  linhas: Linha[];
+  rodape: string;
+}
+
+/** Só a FORMA do cabeçalho (nomes e mesclas), para a impressão digital. */
+export function formaDoBoletim(lida: BoletimLido): string {
+  const grupos = lida.grupos.map((g) => `${g.rotulo.replace(/\s+/g, " ").trim()}[${g.colspan}x${g.rowspan}]`);
+  return `grupos: ${grupos.join(" | ")}\nsiglas: ${lida.siglas.join(" ")}`;
+}
+
+/**
+ * Da página lida ao contrato. Pura, para testar sem navegador. Tudo que não
+ * dá para ler com segurança vira "indisponivel", nunca um palpite.
+ */
+export function interpretarBoletim(lida: BoletimLido | null): Saida {
+  if (!lida) {
+    return { formato: "indisponivel", motivo: "Não encontrei a tabela de notas na página do boletim.", colunasEncontradas: [] };
+  }
+  const encontradas = lida.grupos.map((g) => g.rotulo.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const colunas = colunasDoBoletim(lida.grupos, lida.siglas);
+  if (!colunas) {
+    return {
+      formato: "indisponivel",
+      motivo: "O boletim mudou de formato: as colunas não são as que eu sei ler.",
+      colunasEncontradas: encontradas,
+    };
+  }
+  const notas = montarNotas(lida.linhas, colunas);
+  const problemas = conferirNotas(notas);
+  if (problemas.length) {
+    return {
+      formato: "indisponivel",
+      motivo: `O boletim veio com valores que não fazem sentido para a coluna (${problemas.slice(0, 3).join("; ")}).`,
+      colunasEncontradas: encontradas,
+    };
+  }
+  return { formato: "tabela", notas, legenda: extrairLegenda(lida.rodape) };
+}
+
 /* ---------------------------- a leitura ---------------------------- */
 
 /**
@@ -218,7 +297,7 @@ export function extrairLegenda(texto: string): string[] {
  * dá para saber que "MED" está debaixo de "1º SEM" ou de "MA") e o texto do
  * rodapé, onde fica a legenda.
  */
-async function lerTabelaDoBoletim(alvo: Page) {
+async function lerTabelaDoBoletim(alvo: Page): Promise<BoletimLido | null> {
   for (let tentativa = 0; tentativa < 6; tentativa++) {
     for (const f of alvo.frames()) {
       try {
@@ -279,43 +358,47 @@ export default defineCapacidade({
     "nos itens. " +
     'Siglas e conceitos (CE, CS, CP, NC): use a "legenda", que e a oficial da escola; sigla fora da ' +
     "legenda (como RS ou AJUSTE), cite como esta, sem dizer o que significa. Nunca diga que a aluna foi " +
-    "aprovada ou reprovada, nem qual e a media minima: isso nao esta nos dados.",
+    "aprovada ou reprovada, nem qual e a media minima: isso nao esta nos dados. " +
+    'Se o formato vier "indisponivel", diga que nao conseguiu ler o boletim com seguranca e o ' +
+    "motivo, e NAO cite nenhuma nota.",
   entrada: z.object({}),
   saida: Saida,
 
-  async ler(_args, passo) {
+  async ler(_args, passo, estrutura) {
     const alvo = await abrirPortal(passo);
     passo("Abrindo o boletim");
     await irParaItemDoMenu(alvo, /boletim/, passo);
 
     passo("Lendo as notas");
     await clicarBuscar(alvo);
-    const lida = await lerTabelaDoBoletim(alvo);
-    if (!lida) {
-      const texto = await alvo.evaluate(() => document.body.innerText.slice(0, 4000));
-      await alvo.close().catch(() => {});
-      return { formato: "texto" as const, conteudo: String(texto) };
+    // Sem a tabela, antes caía no texto cru da página: nome, nascimento e
+    // filiação da aluna iam para o modelo. Agora vira "indisponível".
+    //
+    // A tabela às vezes aparece desenhada pela metade, com valores ainda
+    // vazios. Relê algumas vezes antes de desistir: página carregando se
+    // resolve na segunda leitura, formato novo continua recusado.
+    let lida = await lerTabelaDoBoletim(alvo);
+    let r = interpretarBoletim(lida);
+    for (let tentativa = 2; r.formato === "indisponivel" && tentativa <= 3; tentativa++) {
+      passo(`A tabela não parecia pronta; lendo de novo (${tentativa}ª vez)`);
+      await alvo.waitForTimeout(2000);
+      lida = await lerTabelaDoBoletim(alvo);
+      r = interpretarBoletim(lida);
     }
     await alvo.close().catch(() => {});
-    const colunas = colunasDoBoletim(lida.grupos, lida.siglas);
-    if (!colunas) passo("Aviso: o cabeçalho do boletim mudou; usei o layout conhecido");
-    return {
-      formato: "tabela" as const,
-      notas: montarNotas(lida.linhas, colunas ?? LAYOUT_CONHECIDO),
-      legenda: extrairLegenda(lida.rodape),
-      colunasConferidas: colunas !== null,
-    };
+    if (lida) estrutura?.(formaDoBoletim(lida));
+    if (r.formato === "indisponivel") passo(`Aviso: ${r.motivo}`);
+    return r;
   },
 
-  resumir: (d) => (d.formato === "tabela" ? `${d.notas.length} disciplinas` : "boletim em texto"),
+  resumir: (d) => (d.formato === "tabela" ? `${d.notas.length} disciplinas` : "não deu para ler com segurança"),
 
   local: {
     sinais: { forte: /nota|boletim|media|reprov|passei|desempenho|como (vou|estou)|preocupar/ },
     raciocinio: "Vou abrir o boletim no Portal do Aluno e olhar as notas.",
     responder(pergunta, d) {
-      if (d.formato !== "tabela" || !d.notas.length) {
-        return { resposta: "Abri o boletim, mas não consegui ler a tabela agora.", itens: [] };
-      }
+      if (d.formato !== "tabela") return { resposta: `Abri o boletim, mas não consigo lê-lo com segurança. ${d.motivo}`, itens: [] };
+      if (!d.notas.length) return { resposta: "Abri o boletim, mas não consegui ler a tabela agora.", itens: [] };
       const t = semAcento(pergunta);
       const alvo = MATERIAS.find((m) => t.includes(m.slice(0, 5)));
       const linhas = alvo

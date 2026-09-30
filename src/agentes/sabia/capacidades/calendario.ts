@@ -86,7 +86,7 @@ export default defineCapacidade({
   entrada: z.object({}),
   saida: Saida,
 
-  async ler(_args, passo) {
+  async ler(_args, passo, estrutura) {
     const { page } = await getBrowser();
     const id = getEntityId();
     passo("Lendo o calendário");
@@ -100,7 +100,8 @@ export default defineCapacidade({
       page.evaluate(() => {
         const mes = document.body.innerText.match(/[A-Z][a-z]+ \d{4}/)?.[0] || "";
         const eventos: { mes: string; dia: number; evento: string }[] = [];
-        document.querySelectorAll("td, [role='gridcell']").forEach((c) => {
+        const celulas = document.querySelectorAll("td, [role='gridcell']");
+        celulas.forEach((c) => {
           const txt = (c as HTMLElement).innerText.trim();
           if (!txt) return;
           const linhas = txt.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -109,14 +110,21 @@ export default defineCapacidade({
             linhas.slice(1).forEach((e) => eventos.push({ mes, dia: Number(dia), evento: e }));
           }
         });
-        return { mes, eventos };
+        return { mes, eventos, celulas: celulas.length };
       });
 
     const atual = await lerMes();
+    // Sem o título do mês ou sem as células, a resposta seria "nada marcado".
+    // É erro, não vazio.
+    if (!atual.mes || !atual.celulas) {
+      throw new Error("Não reconheci o calendário na página. Ela pode ter mudado de formato.");
+    }
+    // a forma, não os valores: "September 2026" vira "Mês AAAA"
+    estrutura?.(`titulo do mes: ${atual.mes.replace(/[A-Z][a-z]+/, "Mês").replace(/\d{4}/, "AAAA")}\ncelulas: td ou gridcell`);
 
     // Sem o mês seguinte, perto do fim do mês todas as provas já passaram
     // e não existe resposta possível para "qual a próxima prova".
-    let seguinte = { mes: "", eventos: [] as EventoBruto[] };
+    let seguinte = { mes: "", eventos: [] as EventoBruto[], celulas: 0 };
     try {
       passo("Olhando o mês seguinte também");
       // as setas não são <button>: são div.arrow com <i class="arrow right icon">

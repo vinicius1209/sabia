@@ -31,7 +31,7 @@ export default defineCapacidade({
   }),
   saida: Saida,
 
-  async ler({ limite: pedido }, passo) {
+  async ler({ limite: pedido }, passo, estrutura) {
     const limite = pedido ?? 12;
     const { page } = await getBrowser();
     const id = getEntityId();
@@ -41,9 +41,19 @@ export default defineCapacidade({
     // página ainda vazia. Esperamos os itens e, se vier vazio, recarregamos.
     const carregar = async () => {
       await navegarAutenticado(`${CLASSAPP}/entities/${id}/messages`, passo);
-      await page.locator('a[href*="/messages/"]').first()
-        .waitFor({ state: "attached", timeout: 20000 }).catch(() => {});
-      await page.waitForTimeout(1500);
+      // Esperar o link EXISTIR não basta: ele aparece antes do texto, e a
+      // leitura pegava itens vazios. Espera até algum item ter texto.
+      await page
+        .waitForFunction(
+          () =>
+            Array.from(document.querySelectorAll('a[href*="/messages/"]')).some(
+              (a) => ((a.closest("li, tr, div") as HTMLElement | null)?.innerText ?? "").trim().length > 0
+            ),
+          undefined,
+          { timeout: 20000 }
+        )
+        .catch(() => {});
+      await page.waitForTimeout(800);
     };
 
     let itens: { titulo: string; detalhe: string; href: string | null }[] = [];
@@ -71,17 +81,28 @@ export default defineCapacidade({
       }, limite);
     }
 
+    // Três tentativas vazias: a página mudou ou não carregou. Responder "nenhum
+    // aviso" seria afirmar algo que não foi lido.
+    if (!itens.length) {
+      throw new Error("A lista de comunicados veio vazia três vezes. A página pode ter mudado de formato.");
+    }
+
     let destaque: string | null = null;
+    let marcador = "sem aviso aberto";
     if (itens[0]?.href) {
       passo(`Abrindo "${itens[0].titulo}"`);
       await page.goto(new URL(itens[0].href, CLASSAPP).toString(), { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2200);
-      destaque = await page.evaluate(() => {
+      const aberto = await page.evaluate(() => {
         const t = document.body.innerText;
         const i = t.indexOf("from");
-        return (i >= 0 ? t.slice(i) : t).slice(0, 3000);
+        return { texto: (i >= 0 ? t.slice(i) : t).slice(0, 3000), achou: i >= 0 };
       });
+      destaque = aberto.texto;
+      marcador = aberto.achou ? "presente" : "ausente";
     }
+    // a forma que a leitura usa: links da lista e o marcador de onde o texto começa
+    estrutura?.(`lista: links para /messages/, com titulo e detalhe\ncorpo do aviso: marcador "from" ${marcador}`);
     return { total: itens.length, comunicados: itens, conteudoDoMaisRecente: destaque };
   },
 

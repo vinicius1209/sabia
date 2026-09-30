@@ -54,8 +54,14 @@ export interface Capacidade<
   descricao: string;
   entrada: E;
   saida: S;
-  /** a navegação de verdade */
-  ler(args: z.infer<E>, passo: Passo): Promise<z.infer<S>>;
+  /**
+   * A navegação de verdade. Página que não dá para reconhecer é ERRO, nunca
+   * resultado vazio: vazio vira "não tem aula amanhã" com cara de certeza.
+   *
+   * `estrutura` recebe uma descrição da FORMA da página (nomes de colunas,
+   * marcadores), nunca os valores. O núcleo guarda e avisa quando ela muda.
+   */
+  ler(args: z.infer<E>, passo: Passo, estrutura?: (descricao: string) => void): Promise<z.infer<S>>;
   /**
    * Uma linha para o cartão da tela ("12 comunicados lidos").
    * Obrigatório: antes isso ficava no agent.ts com os nomes escritos à mão,

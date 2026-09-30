@@ -28,8 +28,16 @@ const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 
 function CartaoBoletim({ dados, itens }: PropsDoArtefato<Boletim>) {
   const [aberta, setAberta] = useState<string | null>(null)
-  if (dados.formato === "texto") {
-    return <p className="whitespace-pre-wrap text-sm text-muted-foreground">{dados.conteudo}</p>
+  if (dados.formato === "indisponivel") {
+    return (
+      <div className="flex flex-col gap-1.5 text-sm">
+        <p className="font-medium">Não deu para ler o boletim com segurança.</p>
+        <p className="text-muted-foreground">{dados.motivo}</p>
+        {dados.colunasEncontradas.length > 0 && (
+          <p className="text-xs text-muted-foreground">Colunas encontradas: {dados.colunasEncontradas.join(", ")}</p>
+        )}
+      </div>
+    )
   }
   // de onde são as médias: quase sempre todas do mesmo lugar ("1º semestre")
   const origens = [...new Set(dados.notas.map((n) => n.mediaDe).filter((d) => d !== "sem média"))]

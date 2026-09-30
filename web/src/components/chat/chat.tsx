@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/message-scroller"
 import type { Sabia } from "@/hooks/use-sabia"
 import type { EstadoDoServidor, InfoDoAgente } from "@/lib/tipos"
+import { AvisoDeMudanca } from "./aviso-de-mudanca"
 import { Composer } from "./composer"
 import { Turno } from "./turno"
 import { Painel } from "./painel"
@@ -38,6 +39,7 @@ export function Chat({ sabia, info, estado }: { sabia: Sabia; info: InfoDoAgente
           Somente leitura
         </span>
       </header>
+      <AvisoDeMudanca mudancas={estado.mudancas} aoConferir={(c) => void sabia.aceitarEstrutura(c)} />
 
       {vazia ? (
         <Painel info={info} aoPerguntar={(p) => void sabia.enviar(p)}>

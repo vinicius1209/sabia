@@ -141,6 +141,32 @@ O `npm run bench` tem um conjunto só dessas armadilhas (`CASOS=interpretacao`),
 tiradas de erros que aconteceram de verdade. Claude Sonnet e gpt-6-luna fazem
 10/10 em duas rodadas.
 
+## Quando a página muda de formato
+
+A leitura depende de telas que a escola pode mudar sem avisar. Três camadas:
+
+1. **Ler pelo significado.** Colunas pelo nome (cabeçalho em dois níveis), não
+   pela posição. Coluna nova com dados coerentes continua sendo lida sozinha.
+2. **Nunca adivinhar (fail closed).** Cada capacidade trata página irreconhecível
+   como ERRO, nunca como vazio: horários sem grade, calendário sem mês,
+   comunicados vazios três vezes, diário com marcadores mas sem disciplinas. O
+   boletim vira `formato: "indisponivel"` com o motivo e só os nomes das colunas
+   (nenhum valor), e ainda confere os valores (nota de 0 a 10, conceito da
+   legenda, faltas inteiras). No núcleo, dado fora do contrato Zod não chega ao
+   modelo: a ferramenta falha e a resposta diz que não conseguiu ler.
+   Antes, o boletim sem tabela caía no texto cru da página, com nome, nascimento
+   e filiação da aluna, e isso ia para o modelo.
+3. **Avisar que mudou.** `ler()` recebe um terceiro argumento, `estrutura`, e
+   descreve a FORMA da página. `src/nucleo/estruturas.ts` guarda a primeira como
+   referência em `~/.sabia/estruturas.json` e compara nas seguintes; quando muda,
+   `/api/estado` traz a mudança, a tela mostra um aviso com a data, e ele fica até
+   alguém clicar em "Já conferi" (ou até a página voltar ao que era).
+   `npm run doctor -- --fontes` entra em cada fonte e confere, com o app fechado.
+
+Página que carrega pela metade não é mudança de formato: comunicados esperam o
+texto dos itens (não só os links), e o boletim relê até três vezes antes de
+declarar indisponível.
+
 ## O protocolo
 
 `src/nucleo/protocolo.ts` define tudo que o servidor e a tela trocam. A tela

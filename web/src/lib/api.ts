@@ -76,6 +76,7 @@ export const api = {
   ) => fluxo<EventoDoTurno>("/api/perguntar", corpo, aoEvento, sinal),
   conectar: (aoEvento: (e: EventoDeConexao) => void) => fluxo<EventoDeConexao>("/api/conectar", {}, aoEvento),
   parar: () => post<{ parado: boolean }>("/api/parar"),
+  aceitarEstrutura: (capacidade: string) => post<EstadoDoServidor>(`/api/estruturas/${capacidade}/aceitar`),
   codigo2fa: (codigo: string) => post<{ ok: true }>("/api/2fa", { codigo }),
   cancelar2fa: () => post<{ cancelado: boolean }>("/api/2fa/cancelar"),
 }

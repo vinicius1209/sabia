@@ -34,12 +34,18 @@ const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sáb
  *  - grade (Horário x dias), que usa só os códigos
  * Sem juntar as duas, o agente responderia "amanhã você tem BIO, MAT, FIS".
  */
-export function montarHorarios(tabelas: Linha[][], hojeData: Date) {
+/** As duas tabelas da tela: a grade (cabeçalho "Horário") e o dicionário de códigos. */
+export function acharTabelas(tabelas: Linha[][]) {
   const temCabecalho = (t: Linha[], re: RegExp) =>
     t.length > 1 && t[0].some((c) => re.test(semAcento(c)));
+  return {
+    dicionario: tabelas.find((t) => temCabecalho(t, /^(codigo|disciplina)$/)),
+    grade: tabelas.find((t) => temCabecalho(t, /^horario$/)),
+  };
+}
 
-  const dicionario = tabelas.find((t) => temCabecalho(t, /^(codigo|disciplina)$/));
-  const grade = tabelas.find((t) => temCabecalho(t, /^horario$/));
+export function montarHorarios(tabelas: Linha[][], hojeData: Date) {
+  const { dicionario, grade } = acharTabelas(tabelas);
 
   const hoje = DIAS[hojeData.getDay()];
   const amanha = DIAS[(hojeData.getDay() + 1) % 7];
@@ -102,7 +108,7 @@ export default defineCapacidade({
   entrada: z.object({}),
   saida: Saida,
 
-  async ler(_args, passo) {
+  async ler(_args, passo, estrutura) {
     const alvo = await abrirPortal(passo);
     passo("Abrindo o quadro de horários");
     await irParaItemDoMenu(alvo, /quadroHorarios/, passo);
@@ -116,6 +122,14 @@ export default defineCapacidade({
     const tabelas = await lerTabelas(alvo);
     await alvo.close().catch(() => {});
 
+    // Sem a grade, a resposta seria "amanhã você não tem aula". É erro, não vazio.
+    const achadas = acharTabelas(tabelas);
+    if (!achadas.grade) {
+      throw new Error("Não achei o quadro de horários na página. Ela pode ter mudado de formato.");
+    }
+    estrutura?.(
+      `grade: ${achadas.grade[0].join(" | ")}\ndicionario: ${achadas.dicionario?.[0].join(" | ") ?? "ausente"}`
+    );
     const { grade, hoje, amanha } = montarHorarios(tabelas, agora().inicioDoDia);
     return { turma: String(turma).trim(), hoje, amanha, grade };
   },

@@ -112,7 +112,7 @@ export default defineCapacidade({
   }),
   saida: Saida,
 
-  async ler({ data }, passo) {
+  async ler({ data }, passo, estrutura) {
     const alvo = await abrirPortal(passo);
     passo("Abrindo o diário de classe");
     await irParaItemDoMenu(alvo, /agenda/, passo);
@@ -146,7 +146,17 @@ export default defineCapacidade({
     if (data && dataNaTela !== data) {
       throw new Error(`Pedi o diario de ${data}, mas a pagina mostrou ${dataNaTela}`);
     }
-    return { data: dataNaTela, disciplinas: montarDiario(String(texto)) };
+    const disciplinas = montarDiario(String(texto));
+    const MARCADORES = ["Conteúdo ministrado", "Tarefas", "Frequência"];
+    const tem = MARCADORES.filter((m) => String(texto).includes(m));
+    // Os marcadores estão na página mas nenhuma disciplina saiu: o texto mudou
+    // de forma. Dizer "não teve tarefa" seria afirmar sem ter lido.
+    if (tem.length && !disciplinas.length) {
+      throw new Error("O diário tem registros, mas num formato que eu não reconheço.");
+    }
+    // só em dia com aula: sábado sem registro não é mudança de formato
+    if (disciplinas.length) estrutura?.(`marcadores: ${MARCADORES.map((m) => `${m}=${tem.includes(m) ? "sim" : "não"}`).join(", ")}`);
+    return { data: dataNaTela, disciplinas };
   },
 
   resumir: (d) => {

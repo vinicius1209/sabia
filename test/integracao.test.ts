@@ -84,7 +84,7 @@ describe("Activesoft: boletim", { timeout: 240_000 }, () => {
     const dados = await executar("ler_boletim", {}, semPasso);
     const r = SaidaBoletim.safeParse(dados);
     assert.ok(r.success, `fora do contrato: ${r.error?.message}`);
-    assert.equal(r.data.formato, "tabela", "caiu no fallback de texto, o iframe falhou");
+    assert.equal(r.data.formato, "tabela", r.data.formato === "indisponivel" ? r.data.motivo : "");
 
     if (r.data.formato !== "tabela") return;
     assert.ok(r.data.notas.length >= 5, `poucas disciplinas: ${r.data.notas.length}`);
@@ -103,13 +103,12 @@ describe("Activesoft: boletim", { timeout: 240_000 }, () => {
   test("cada coluna com o nome certo, e nada de dado pessoal na legenda", async () => {
     const dados = await executar("ler_boletim", {}, semPasso);
     const r = SaidaBoletim.safeParse(dados);
-    assert.ok(r.success && r.data.formato === "tabela");
+    assert.ok(r.success, "fora do contrato");
+    assert.equal(r.success && r.data.formato, "tabela", r.success && r.data.formato === "indisponivel" ? r.data.motivo : "");
     if (!r.success || r.data.formato !== "tabela") return;
     const b = r.data;
 
-    // se a escola mudar a tabela, isto acusa antes da feira
-    assert.equal(b.colunasConferidas, true, "o cabeçalho do boletim não bateu com o layout conhecido");
-
+    // se a escola mudar a tabela, o formato vira "indisponivel" e isto acusa antes da feira
     assert.ok(b.legenda.some((l) => /^CE - /.test(l)), `legenda sem os conceitos: ${JSON.stringify(b.legenda)}`);
     assert.doesNotMatch(b.legenda.join(" | "), /declaro|matr[ií]cula|assinatura|\d{8}/i, "dado pessoal vazou na legenda");
 

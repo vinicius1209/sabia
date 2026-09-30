@@ -139,7 +139,12 @@ export function criarRegistro(capacidades: readonly Capacidade[]) {
    * entrada validada antes de virar ação, saída validada antes de voltar
    * para o modelo.
    */
-  async function executar(nome: string, argsBrutos: unknown, passo: Passo): Promise<unknown> {
+  async function executar(
+    nome: string,
+    argsBrutos: unknown,
+    passo: Passo,
+    estrutura?: (descricao: string) => void
+  ): Promise<unknown> {
     const c = capacidade(nome);
 
     // Parâmetro ausente vira o padrão (nulo). As entradas são .nullable() e não
@@ -151,13 +156,17 @@ export function criarRegistro(capacidades: readonly Capacidade[]) {
       throw new Error(`Argumentos invalidos para ${nome}: ${entrada.error.message}`);
     }
 
-    const bruto = await c.ler(entrada.data, passo);
+    const bruto = await c.ler(entrada.data, passo, estrutura);
 
+    // Fora do contrato, o dado NÃO chega ao modelo. Antes ele seguia com um
+    // aviso no painel, e o modelo respondia em cima de um dado torto com a
+    // mesma certeza de sempre. Melhor a ferramenta falhar e a resposta dizer
+    // que não conseguiu ler.
     const saida = c.saida.safeParse(bruto);
     if (!saida.success) {
-      // não derruba a conversa: devolve o que veio, mas avisa no painel
-      passo(`Aviso: ${nome} veio num formato inesperado`);
-      return bruto;
+      throw new Error(
+        `${c.rotulo} veio num formato que eu não reconheço. Não vou usar, para não responder errado.`
+      );
     }
     return saida.data;
   }

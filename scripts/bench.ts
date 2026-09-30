@@ -52,7 +52,6 @@ const BOL = {
       "CE - CONCLUIU COM EXCELÊNCIA   CS - CONCLUIU SATISFATORIAMENTE   CP - CONCLUIU PARCIALMENTE   NC - NÃO CONCLUIU\n" +
       "T1 - Trabalho 1\nT2 - Trabalho 2\nSIM - Simulado\nP1 - Prova 1\nP2 - Prova 2\nREC - Recuperação"
   ),
-  colunasConferidas: true,
 };
 const CAL = {
   mes: "September 2026 e October 2026",

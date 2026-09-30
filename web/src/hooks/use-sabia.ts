@@ -127,9 +127,11 @@ export function useSabia() {
         enviando.current = null
         mudarUltimo((t) => ({ ...t, ativo: false, esperandoCodigo: false }))
         void recarregarConversas()
+        // é durante a leitura que uma fonte pode ter mudado de formato
+        void recarregarEstado()
       }
     },
-    [aberta.id, recarregarConversas]
+    [aberta.id, recarregarConversas, recarregarEstado]
   )
 
   const parar = useCallback(async () => {
@@ -163,6 +165,10 @@ export function useSabia() {
     setEstado(await api.escolherMotor(id, modelo))
   }, [])
 
+  const aceitarEstrutura = useCallback(async (capacidade: string) => {
+    setEstado(await api.aceitarEstrutura(capacidade))
+  }, [])
+
   return {
     info,
     estado,
@@ -177,6 +183,7 @@ export function useSabia() {
     apagar,
     renomear,
     escolherMotor,
+    aceitarEstrutura,
     recarregarEstado,
     recarregarInfo,
     recarregarConversas,

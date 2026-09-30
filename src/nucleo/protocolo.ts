@@ -101,6 +101,8 @@ export interface EstadoDoServidor {
   motor: { id: string; modelo: string; nome: string; automatico: boolean };
   motores: OpcaoDeMotor[];
   ocupado: boolean;
+  /** fontes cuja página mudou de formato desde a última vez que alguém conferiu */
+  mudancas: { capacidade: string; rotulo: string; desde: string }[];
 }
 
 /** GET /api/config: os campos do pacote, sem devolver segredo nenhum. */

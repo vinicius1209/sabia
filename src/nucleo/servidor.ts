@@ -4,6 +4,7 @@ import path from "node:path";
 import express, { type Request, type Response } from "express";
 import { criarAgente, PerguntaInterrompida } from "./agente.ts";
 import { lerConfig, salvarConfig, veioDoAmbiente } from "./config.ts";
+import { aceitarEstrutura, conferirEstrutura, mudancas } from "./estruturas.ts";
 import * as conversas from "./conversas.ts";
 import { criarPortao2FA } from "./doisfatores.ts";
 import { CATALOGO, VAR_DO_MODELO, criarMotor, disponibilidade, motorEscolhido, type Motor } from "./motores/index.ts";
@@ -77,6 +78,13 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
     motor,
     preparar: (passo) =>
       pacote.preparar?.({ passo, pedirCodigo: () => portao2fa.pedir() }) ?? Promise.resolve(),
+    // cada leitura confere a FORMA da página com a conhecida (ver estruturas.ts)
+    executarFerramenta: (nome, args, passo) =>
+      registro.executar(nome, args, passo, (descricao) => {
+        if (conferirEstrutura(nome, descricao) === "mudou") {
+          passo(`Aviso: a página de "${registro.capacidade(nome).rotulo}" mudou de formato`);
+        }
+      }),
   });
 
   function faltando(): string[] {
@@ -94,6 +102,12 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
       motor: { ...escolha, nome: motor().nome },
       motores,
       ocupado: emAndamento !== null,
+      // só as fontes DESTE pacote: o arquivo é do home, e outro agente
+      // (SABIA_AGENTE) pode ter deixado as dele lá
+      mudancas: mudancas().flatMap((m) => {
+        const c = registro.capacidades.find((x) => x.nome === m.capacidade);
+        return c ? [{ capacidade: m.capacidade, rotulo: c.rotulo, desde: m.desde }] : [];
+      }),
     };
   }
 
@@ -211,6 +225,14 @@ export function criarServidor({ pacote, pastaWeb, pastaClassica }: OpcoesDoServi
       emAndamento = null;
       res.end();
     }
+  });
+
+  /** Alguém conferiu que a página nova está sendo lida certo: vira a referência. */
+  app.post("/api/estruturas/:nome/aceitar", async (req, res) => {
+    const nome = String(req.params.nome);
+    if (!registro.capacidades.some((c) => c.nome === nome)) return res.status(404).json({ erro: "fonte desconhecida" });
+    aceitarEstrutura(nome);
+    res.json(await estado());
   });
 
   /* ---------------------------- conversas --------------------------- */
