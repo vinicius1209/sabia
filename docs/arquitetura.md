@@ -167,6 +167,28 @@ Página que carrega pela metade não é mudança de formato: comunicados esperam
 texto dos itens (não só os links), e o boletim relê até três vezes antes de
 declarar indisponível.
 
+## A memória da conversa
+
+`src/nucleo/memoria.ts`, no desenho de memória do Frota (`docs/context-handoff.md`
+no mycockpit):
+
+- **A memória é do app, não do modelo.** Nenhuma sessão nativa guarda nada, então
+  trocar de motor no meio da conversa (Claude → OpenAI) não perde contexto.
+- **Orçamento, não despejo.** As 3 últimas trocas vão inteiras (pergunta,
+  resposta, destaques, hora); as antigas, em uma linha; tudo dentro de 6.000
+  caracteres, com aviso explícito quando algo fica de fora. Os DADOS brutos das
+  leituras antigas não voltam: o boletim sozinho tem ~9 mil caracteres.
+- **O pedido atual nunca é cortado** e aparece uma vez só, depois da conversa.
+- **O dado de agora vence a memória.** A conversa ajuda a entender "essa
+  matéria"; número novo só vem da fonte lida agora.
+
+E uma regra no código, porque instrução no prompt não bastou: se o plano diz
+que a pergunta é sobre um assunto com fonte (ou é "conversa" mas a pergunta
+dispara os sinais do plano B, como "média"), e não pede leitura nenhuma, o
+`completarPlano` acrescenta a leitura. Medido: o gpt-6-luna respondia "qual é
+MESMO a média?" de memória, com a nota antiga. `CASOS=continuacao` no bench
+cobra isso (Claude Sonnet e gpt-6-luna 6/6 em duas rodadas).
+
 ## O protocolo
 
 `src/nucleo/protocolo.ts` define tudo que o servidor e a tela trocam. A tela

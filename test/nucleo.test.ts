@@ -24,6 +24,8 @@ const conversas = await import("../src/nucleo/conversas.ts");
 const { criarServidor } = await import("../src/nucleo/servidor.ts");
 const { motorEscolhido } = await import("../src/nucleo/motores/index.ts");
 const { conferirEstrutura, aceitarEstrutura, mudancas } = await import("../src/nucleo/estruturas.ts");
+const { montarMemoria } = await import("../src/nucleo/memoria.ts");
+type Troca = import("../src/nucleo/memoria.ts").Troca;
 
 after(() => fs.rmSync(HOME, { recursive: true, force: true }));
 
@@ -229,6 +231,57 @@ describe("impressao digital da forma de cada fonte", () => {
   });
 });
 
+/* ------------------------------ memória ------------------------------ */
+
+describe("memoria da conversa (orcamento, nao despejo)", () => {
+  const troca = (i: number, extra: Partial<Troca> = {}): Troca => ({
+    pergunta: `pergunta ${i}`,
+    intencao: "notas",
+    resposta: `Resposta numero ${i}. Com uma segunda frase que so aparece por inteiro nas recentes.`,
+    itens: [{ rotulo: `item ${i}`, valor: `${i},0` }],
+    quando: `2026-09-30T1${i % 10}:00:00.000Z`,
+    ...extra,
+  });
+
+  test("sem conversa, nada", () => {
+    assert.equal(montarMemoria([]), "");
+  });
+
+  test("as 3 ultimas vao inteiras (com destaques); as antigas, em uma linha", () => {
+    const m = montarMemoria([1, 2, 3, 4, 5].map((i) => troca(i)));
+    for (const i of [3, 4, 5]) assert.match(m, new RegExp(`Voce respondeu: Resposta numero ${i}\\. Com uma segunda frase`));
+    for (const i of [3, 4, 5]) assert.match(m, new RegExp(`item ${i}: ${i},0`));
+    for (const i of [1, 2]) {
+      assert.match(m, new RegExp(`"pergunta ${i}" → Resposta numero ${i}\\.`));
+      assert.doesNotMatch(m, new RegExp(`item ${i}:`), "troca antiga nao leva destaques");
+    }
+  });
+
+  test("nunca passa do orcamento, e diz quando cortou", () => {
+    const longa = "x".repeat(3000);
+    const trocas = Array.from({ length: 40 }, (_, i) => troca(i, { resposta: longa, pergunta: `p${i} ${longa}` }));
+    const m = montarMemoria(trocas, 6000);
+    assert.ok(m.length <= 6000, `memoria com ${m.length} caracteres`);
+    assert.match(m, /ficaram de fora\]/);
+  });
+
+  test("troca que deu erro aparece como erro, nao como resposta", () => {
+    const m = montarMemoria([troca(1, { resposta: "", itens: [], erro: "O boletim mudou de formato." })]);
+    assert.match(m, /Nao consegui responder: O boletim mudou de formato\./);
+    assert.doesNotMatch(m, /Voce respondeu/);
+  });
+
+  test("o prompt manda a conversa, e deixa claro que o dado de agora vence", async () => {
+    const { montarPrompt } = await import("../src/nucleo/prompt.ts");
+    const p = montarPrompt({ pergunta: "e em fisica?", instrucao: "x", historico: [troca(1)] });
+    assert.match(p, /Conversa ate agora/);
+    assert.match(p, /vale o de agora/);
+    // o pedido atual aparece uma vez so, e depois da conversa
+    assert.equal(p.split('Pergunta: "e em fisica?"').length, 2);
+    assert.ok(p.indexOf("Conversa ate agora") < p.indexOf('Pergunta: "e em fisica?"'));
+  });
+});
+
 /* ----------------------------- conversas ---------------------------- */
 
 describe("conversas salvas", () => {
@@ -245,22 +298,37 @@ describe("conversas salvas", () => {
     assert.throws(() => conversas.apagar("../config"), /inválido/);
   });
 
-  test("o historico sai dos eventos de plano de cada turno", () => {
+  test("o historico traz a troca inteira (pergunta, resposta, destaques, hora)", () => {
     const c = conversas.criar("nota?");
     conversas.salvarTurno(c.id, {
       id: "t1",
       pergunta: "nota de matematica?",
-      criadoEm: new Date().toISOString(),
-      eventos: [{ tipo: "plano", mensagem: "x", intencao: "notas", ferramentas: [] }],
+      criadoEm: "2026-09-30T15:00:00.000Z",
+      eventos: [
+        { tipo: "plano", mensagem: "x", intencao: "notas", ferramentas: [] },
+        { tipo: "resposta", resposta: "Sua media e 7,3.", itens: [{ rotulo: "Matemática", valor: "7,3" }], fonte: "Portal", duracaoMs: 1, motor: "m" },
+      ],
     });
     conversas.salvarTurno(c.id, {
       id: "t2",
-      pergunta: "deu erro",
-      criadoEm: new Date().toISOString(),
-      eventos: [{ tipo: "erro", mensagem: "caiu" }],
+      pergunta: "e o boletim?",
+      criadoEm: "2026-09-30T15:05:00.000Z",
+      eventos: [
+        { tipo: "plano", mensagem: "x", intencao: "notas", ferramentas: [] },
+        { tipo: "erro", mensagem: "O boletim mudou de formato." },
+      ],
     });
-    const lida = conversas.ler(c.id)!;
-    assert.deepEqual(conversas.historicoDe(lida), [{ pergunta: "nota de matematica?", intencao: "notas" }]);
+    conversas.salvarTurno(c.id, {
+      id: "t3",
+      pergunta: "parei antes do plano",
+      criadoEm: "2026-09-30T15:06:00.000Z",
+      eventos: [{ tipo: "erro", mensagem: "Parei a pergunta a pedido." }],
+    });
+    const h = conversas.historicoDe(conversas.ler(c.id)!);
+    assert.deepEqual(h, [
+      { pergunta: "nota de matematica?", intencao: "notas", resposta: "Sua media e 7,3.", itens: [{ rotulo: "Matemática", valor: "7,3" }], quando: "2026-09-30T15:00:00.000Z", erro: undefined },
+      { pergunta: "e o boletim?", intencao: "notas", resposta: "", itens: [], quando: "2026-09-30T15:05:00.000Z", erro: "O boletim mudou de formato." },
+    ]);
     assert.equal(conversas.listar()[0].id, c.id);
   });
 });

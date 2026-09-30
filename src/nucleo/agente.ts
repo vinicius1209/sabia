@@ -1,6 +1,7 @@
 import type { Motor } from "./motores/index.ts";
 import type { EventoDoTurno } from "./protocolo.ts";
-import type { Registro, Resposta } from "./registro.ts";
+import type { Plano, Registro, Resposta } from "./registro.ts";
+import type { Troca } from "./memoria.ts";
 import type { Passo } from "./texto.ts";
 
 /* ==================================================================
@@ -21,6 +22,39 @@ import type { Passo } from "./texto.ts";
  * ================================================================== */
 
 export type Emitir = (e: EventoDoTurno) => void;
+
+/**
+ * Pergunta sobre um assunto que tem fonte (notas, provas...), mas o plano não
+ * pediu leitura nenhuma: o código acrescenta a leitura daquele assunto.
+ *
+ * Com a memória da conversa, o modelo às vezes respondia "qual é MESMO a
+ * média de português?" de memória, com a nota de uma leitura antiga (medido
+ * no bench: gpt-6-luna, 1 em 2). Instrução no prompt não bastou, e às vezes
+ * ele ainda chamava isso de "conversa". No pior caso o agente lê de novo sem
+ * precisar, o que é mais lento, nunca errado.
+ */
+export function completarPlano(
+  plano: Plano,
+  registro: Registro,
+  pergunta = ""
+): { plano: Plano; completou: boolean } {
+  if (plano.ferramentas.length) return { plano, completou: false };
+  // "conversa" que pede um valor ("qual é MESMO a média?"): os sinais do plano
+  // B (palavras-chave por fonte) servem de rede. "Por que você disse isso?" e
+  // "oi" não disparam sinal nenhum e continuam sendo conversa.
+  const pelaPergunta = plano.intencao === "conversa" ? registro.escolherLocal(pergunta) : null;
+  const doAssunto =
+    plano.intencao === "conversa"
+      ? pelaPergunta
+        ? [pelaPergunta]
+        : []
+      : registro.capacidades.filter((c) => c.intencao === plano.intencao);
+  if (!doAssunto.length) return { plano, completou: false };
+  return {
+    plano: { ...plano, ferramentas: doAssunto.map((c) => ({ nome: c.nome, args: registro.argsPadrao(c.nome) })) },
+    completou: true,
+  };
+}
 
 export class PerguntaInterrompida extends Error {
   constructor() {
@@ -49,7 +83,8 @@ export function criarAgente({
     sinal,
   }: {
     pergunta: string;
-    historico?: { pergunta: string; intencao: string }[];
+    /** as trocas anteriores; a memória (memoria.ts) escolhe o que cabe no orçamento */
+    historico?: Troca[];
     emitir: Emitir;
     /** a pessoa pode parar no meio; o agente para na próxima fronteira de fase */
     sinal?: AbortSignal;
@@ -66,12 +101,17 @@ export function criarAgente({
 
     // FASE 1: planejar
     passo("Entendendo a pergunta");
-    const plano = await llm.plano({
+    const planoDoModelo = await llm.plano({
       pergunta,
-      instrucao: "Monte o plano para responder.",
-      historico: historico.slice(-4),
+      instrucao:
+        "Monte o plano para responder. Se a pergunta precisa de um dado, consulte a fonte agora, " +
+        "mesmo que a conversa ja tenha falado dele. So dispense a consulta se ela pede para " +
+        "explicar ou retomar o que voce ja respondeu.",
+      historico,
     });
     conferir();
+    const { plano, completou } = completarPlano(planoDoModelo, registro, pergunta);
+    if (completou) passo("Consultando a fonte de novo, para não responder de memória");
     emitir({
       tipo: "plano",
       mensagem: plano.mensagem,
@@ -103,9 +143,11 @@ export function criarAgente({
       {
         pergunta,
         instrucao: plano.ferramentas.length
-          ? "Responda com base APENAS nos dados abaixo."
-          : "Nenhuma fonte foi consultada, responda apenas conversando.",
+          ? "Responda com base APENAS nos dados abaixo (a conversa so ajuda a entender a pergunta)."
+          : "Nenhuma fonte foi consultada agora. Converse, ou retome o que voce ja respondeu nesta " +
+            "conversa dizendo de que horas e aquela leitura. Nao afirme dado novo.",
         dados: plano.ferramentas.length ? coletado : undefined,
+        historico,
       },
       (parcial) => emitir({ tipo: "texto", parcial })
     );

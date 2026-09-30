@@ -5,7 +5,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import sabia from "../src/agentes/sabia/index.ts";
-import { criarAgente, PerguntaInterrompida } from "../src/nucleo/agente.ts";
+import { completarPlano, criarAgente, PerguntaInterrompida } from "../src/nucleo/agente.ts";
 import type { Motor } from "../src/nucleo/motores/index.ts";
 import type { Entrada } from "../src/nucleo/prompt.ts";
 import type { EventoDoTurno } from "../src/nucleo/protocolo.ts";
@@ -54,14 +54,22 @@ function agenteCom(
 }
 
 describe("laco do agente", () => {
-  test("o historico da conversa chega ao modelo, e so as 4 ultimas trocas", async () => {
+  test("o historico da conversa chega as DUAS fases (planejar e responder)", async () => {
     const { motor, recebido } = motorFalso(PLANO_NOTA);
     const { perguntar } = agenteCom(motor);
-    const historico = Array.from({ length: 6 }, (_, i) => ({ pergunta: `p${i}`, intencao: "notas" }));
+    const historico = Array.from({ length: 6 }, (_, i) => ({
+      pergunta: `p${i}`,
+      intencao: "notas",
+      resposta: `r${i}`,
+      itens: [],
+      quando: "2026-09-30T12:00:00.000Z",
+    }));
 
     await perguntar("E em fisica?", { historico });
 
-    assert.deepEqual(recebido[0].historico?.map((h) => h.pergunta), ["p2", "p3", "p4", "p5"]);
+    // a memoria (memoria.ts) decide o que cabe; o laco entrega tudo, nas duas fases
+    assert.equal(recebido[0].historico?.length, 6, "o plano nao recebeu a conversa");
+    assert.equal(recebido[1].historico?.length, 6, "a resposta nao recebeu a conversa");
   });
 
   test("sem historico, o modelo recebe lista vazia (conversas nao se misturam)", async () => {
@@ -151,6 +159,42 @@ describe("laco do agente", () => {
     });
     await perguntar("nota?");
     assert.deepEqual(ordem, ["preparar", "plano"]);
+  });
+
+  test("assunto com fonte e plano sem leitura: o codigo acrescenta a leitura (nada de memoria velha)", async () => {
+    // "qual e MESMO a media de portugues?": o modelo quis responder de memoria
+    const { motor } = motorFalso({ intencao: "notas", mensagem: "ja sei", ferramentas: [] });
+    const lidas: string[] = [];
+    const { perguntar, eventos } = agenteCom(motor, async (nome) => {
+      lidas.push(nome);
+      return { formato: "tabela", notas: [], legenda: [] };
+    });
+    await perguntar("E qual e mesmo a media de portugues?");
+    assert.deepEqual(lidas, ["ler_boletim"]);
+    assert.ok(eventos.some((e) => e.tipo === "passo" && /não responder de memória/.test(e.mensagem)));
+  });
+
+  test("conversa de verdade continua sem abrir fonte nenhuma", () => {
+    for (const p of ["Oi, tudo bem?", "Por que voce disse isso?", "Valeu!"]) {
+      const { plano, completou } = completarPlano({ intencao: "conversa", mensagem: "oi", ferramentas: [] }, registro, p);
+      assert.equal(completou, false, `"${p}" abriu fonte`);
+      assert.deepEqual(plano.ferramentas, []);
+    }
+  });
+
+  test('"conversa" que pede um valor ("qual e MESMO a media?") le a fonte', () => {
+    const { plano, completou } = completarPlano(
+      { intencao: "conversa", mensagem: "ja sei", ferramentas: [] },
+      registro,
+      "E qual e mesmo a media de portugues?"
+    );
+    assert.equal(completou, true);
+    assert.deepEqual(plano.ferramentas.map((f) => f.nome), ["ler_boletim"]);
+  });
+
+  test("assunto com varias fontes (se houver) le todas as daquele assunto", () => {
+    const { plano } = completarPlano({ intencao: "provas", mensagem: "x", ferramentas: [] }, registro);
+    assert.deepEqual(plano.ferramentas.map((f) => f.nome), ["ler_calendario"]);
   });
 
   test("parar no meio nao executa mais nada", async () => {

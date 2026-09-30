@@ -115,6 +115,21 @@ Variáveis de ambiente vencem o que está lá (e a tela não consegue trocá-las
 Ainda dá para usar um `.env` na raiz, no formato do [`.env.example`](.env.example):
 na primeira execução ele é importado para o `~/.sabia`.
 
+## Conversa que continua
+
+Dá para emendar ("e em física?", "e quantas faltas nessa matéria?", "por que
+você disse isso?"). O Sabiá manda ao modelo as últimas trocas inteiras e as
+mais antigas em uma linha, dentro de um teto de 6.000 caracteres, no desenho
+de memória do Frota. Duas regras protegem a resposta:
+
+- **O dado lido agora vence a memória.** A conversa serve para entender a
+  pergunta; número novo só vem da fonte.
+- **Pedido de valor sempre consulta a fonte**, mesmo que o valor já tenha
+  aparecido. Se o modelo tentar responder de memória, o código lê a fonte.
+
+Trocar de motor no meio da conversa não perde nada: a memória é do Sabiá, não
+do modelo.
+
 ## O código de verificação (2FA)
 
 O ClassApp permite **confiar no dispositivo por 30 dias**, então normalmente o
@@ -129,7 +144,7 @@ prazo, ele desiste e avisa. Nada é contornado.
 npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
 npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
 npm run check      # tipos do servidor e da tela
-npm test           # 125 testes, sem rede e sem navegador, menos de 1s
+npm test           # 134 testes, sem rede e sem navegador, menos de 1s
 npm run test:real  # as 5 capacidades contra os sistemas reais
 npm run bench      # compara motores no trabalho real do agente
 ```

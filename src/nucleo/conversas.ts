@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { caminhos } from "./config.ts";
+import type { Troca } from "./memoria.ts";
 import type { Conversa, ResumoDeConversa, Turno } from "./protocolo.ts";
 
 /* ==================================================================
@@ -88,10 +89,25 @@ export function apagar(id: string) {
   fs.rmSync(arquivo(id), { force: true });
 }
 
-/** As perguntas anteriores e o assunto de cada uma, para "e em física?". */
-export function historicoDe(c: Conversa): { pergunta: string; intencao: string }[] {
+/**
+ * As trocas anteriores, inteiras (pergunta, resposta, destaques, hora), para
+ * a memória da conversa. Pergunta interrompida antes do plano fica de fora.
+ */
+export function historicoDe(c: Conversa): Troca[] {
   return c.turnos.flatMap((t) => {
     const plano = t.eventos.find((e) => e.tipo === "plano");
-    return plano && plano.tipo === "plano" ? [{ pergunta: t.pergunta, intencao: plano.intencao }] : [];
+    if (!plano || plano.tipo !== "plano") return [];
+    const resposta = t.eventos.find((e) => e.tipo === "resposta");
+    const erro = t.eventos.find((e) => e.tipo === "erro");
+    return [
+      {
+        pergunta: t.pergunta,
+        intencao: plano.intencao,
+        resposta: resposta?.tipo === "resposta" ? resposta.resposta : "",
+        itens: resposta?.tipo === "resposta" ? resposta.itens : [],
+        quando: t.criadoEm,
+        erro: !resposta && erro?.tipo === "erro" ? erro.mensagem : undefined,
+      },
+    ];
   });
 }

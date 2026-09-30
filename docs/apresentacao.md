@@ -85,7 +85,7 @@ funciona** quase não tem. Conte como história, na ordem:
 - **9, a coluna:** "Mostrava 6,0 em Física, e a média era 8,5. Ele lia a coluna errada."
 - **10, a certeza:** "Esse é o pior tipo de erro: ele respondia com toda a certeza, e
   estava errado. Pedi a tarefa de segunda e ele me mostrou a de hoje."
-- **11, a sabotagem:** "Aí eu escrevi 125 testes e **quebrei meu próprio código de
+- **11, a sabotagem:** "Aí eu escrevi 134 testes e **quebrei meu próprio código de
   propósito**. Quando eu estraguei a média, 4 testes acusaram. Ótimo. Quando eu tirei
   uma palavra de um filtro, **nenhum** acusou. O teste era fraco, e eu não sabia."
 

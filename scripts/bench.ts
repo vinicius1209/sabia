@@ -17,6 +17,8 @@ import { carregarConfig, lerConfig } from "../src/nucleo/config.ts";
 import { criarMotor } from "../src/nucleo/motores/index.ts";
 import { montarSistema } from "../src/nucleo/prompt.ts";
 import { criarRegistro, type Plano } from "../src/nucleo/registro.ts";
+import type { Troca } from "../src/nucleo/memoria.ts";
+import { completarPlano } from "../src/nucleo/agente.ts";
 import { extrairLegenda, montarNotas } from "../src/agentes/sabia/capacidades/boletim.ts";
 import { marcarEventos } from "../src/agentes/sabia/capacidades/calendario.ts";
 
@@ -86,6 +88,12 @@ interface Caso {
   precisa?: string[];
   /** nada disto pode aparecer */
   proibido?: RegExp[];
+  /** a conversa antes desta pergunta */
+  historico?: Troca[];
+  /** outros planos igualmente seguros (ex.: explicar de memoria OU ler de novo) */
+  toolsAceitas?: string[][];
+  /** proibido so quando NADA foi lido agora (numero novo sem fonte) */
+  proibidoSemLeitura?: RegExp[];
 }
 
 const FACEIS: Caso[] = [
@@ -124,10 +132,39 @@ const INTERPRETACAO: Caso[] = [
     precisa: ["17"], proibido: [/pr[oó]xima (prova|avalia[cç][aã]o)[^.]{0,40}(segunda chamada|2 de outubro|02\/10)/i] },
   // os dados nao dizem a media minima: nada de aprovado/reprovado
   { p: "Eu vou passar de ano?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
-    proibido: [/\b(est[aá]|foi|ser[aá]|vai ser) (aprovad|reprovad)/i, /m[eé]dia m[ií]nima [eé] \d/i] },
+    // afirmar aprovacao e proibido; dizer que NAO sabe "se voce esta aprovada" e o certo
+    proibido: [/(?<!\bse )\bvoc[eê] (est[aá]|foi|ser[aá]|vai ser) (aprovad|reprovad)/i, /m[eé]dia m[ií]nima [eé] (de )?\d/i] },
 ];
 
-const CASOS = process.env.CASOS === "interpretacao" ? INTERPRETACAO : process.env.DIFICIL ? DIFICEIS : FACEIS;
+/* Continuacao: a pista SO existe na resposta anterior, nao na pergunta. */
+const antes = (pergunta: string, resposta: string, itens: Troca["itens"] = []): Troca => ({
+  pergunta, intencao: "notas", resposta, itens, quando: "2026-09-26T13:00:00.000Z",
+});
+const JA_FALOU_DE_PORTUGUES = [
+  antes(
+    "Tem alguma materia que eu preciso me preocupar?",
+    "Pelas medias do 1º semestre, o ponto de atencao e Lingua Portuguesa, com 5,8.",
+    [{ rotulo: "Língua Portuguesa (média 1º sem.)", valor: "5,8" }]
+  ),
+];
+const CONTINUACAO: Caso[] = [
+  // "nessa materia" so se resolve pela RESPOSTA anterior (Portugues tem 3 faltas; Matematica, 17)
+  { p: "E quantas faltas eu tenho nessa materia?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
+    historico: JA_FALOU_DE_PORTUGUES, precisa: ["3"], proibido: [/\b17\b/] },
+  // explicar o que ja disse: sem consultar de novo, e sem numero novo
+  { p: "Por que voce disse isso?", tools: [], toolsAceitas: [["ler_boletim"]], dados: null,
+    historico: JA_FALOU_DE_PORTUGUES, precisa: ["5,8"], proibidoSemLeitura: [/\b(7,3|8,5|9,1)\b/] },
+  // a memoria diz 6,4, a fonte de agora diz 5,8: vale a de agora
+  { p: "E qual e mesmo a media de portugues?", tools: ["ler_boletim"], dados: { ler_boletim: BOL },
+    historico: [antes("Qual minha nota de portugues?", "Sua media de Portugues no 1º semestre e 6,4.")],
+    precisa: ["5,8"] },
+];
+
+const CASOS =
+  process.env.CASOS === "interpretacao" ? INTERPRETACAO
+  : process.env.CASOS === "continuacao" ? CONTINUACAO
+  : process.env.DIFICIL ? DIFICEIS
+  : FACEIS;
 
 const nomes = (p: Plano) => p.ferramentas.map((f) => f.nome);
 
@@ -143,9 +180,19 @@ for (const candidato of CANDIDATOS) {
     for (let r = 0; r < RODADAS; r++) {
       for (const c of CASOS) {
         total++;
-        const plano = await motor.plano({ pergunta: c.p, instrucao: "Monte o plano para responder." });
+        const planoDoModelo = await motor.plano({
+          pergunta: c.p,
+          instrucao:
+            "Monte o plano para responder. Se a pergunta precisa de um dado, consulte a fonte agora, " +
+            "mesmo que a conversa ja tenha falado dele. So dispense a consulta se ela pede para " +
+            "explicar ou retomar o que voce ja respondeu.",
+          historico: c.historico,
+        });
+        // o que o AGENTE faz: o plano do modelo mais a regra do codigo
+        const { plano } = completarPlano(planoDoModelo, registro, c.p);
 
-        let ok = JSON.stringify(nomes(plano)) === JSON.stringify(c.tools);
+        const aceitos = [c.tools, ...(c.toolsAceitas ?? [])].map((t) => JSON.stringify(t));
+        let ok = aceitos.includes(JSON.stringify(nomes(plano)));
         if (!ok) falhas.add(`plano "${c.p.slice(0, 26)}": ${JSON.stringify(nomes(plano))}`);
 
         if (ok && c.args) {
@@ -156,14 +203,24 @@ for (const candidato of CANDIDATOS) {
           }
         }
 
+        // como no agente: a resposta recebe o que o PLANO leu
+        const FIXTURES: Record<string, unknown> = { ler_boletim: BOL, ler_calendario: CAL, ler_diario: DIA };
+        const lidos = plano.ferramentas.length
+          ? Object.fromEntries(plano.ferramentas.map((f) => [f.nome, FIXTURES[f.nome] ?? {}]))
+          : undefined;
         const resp = await motor.resposta({
           pergunta: c.p,
-          instrucao: c.dados ? "Responda com base APENAS nos dados abaixo." : "Responda apenas conversando.",
-          dados: c.dados ?? undefined,
+          instrucao: lidos
+            ? "Responda com base APENAS nos dados abaixo (a conversa so ajuda a entender a pergunta)."
+            : "Nenhuma fonte foi consultada agora. Converse, ou retome o que voce ja respondeu nesta " +
+              "conversa dizendo de que horas e aquela leitura. Nao afirme dado novo.",
+          dados: lidos,
+          historico: c.historico,
         });
         const txt = resp.resposta + JSON.stringify(resp.itens);
         let okResp = (c.precisa ?? []).every((x) => txt.includes(x));
         for (const bad of c.proibido ?? []) if (bad.test(txt)) okResp = false;
+        if (!lidos) for (const bad of c.proibidoSemLeitura ?? []) if (bad.test(txt)) okResp = false;
         if (!okResp) {
           const itens = resp.itens.map((i) => `${i.rotulo}=${i.valor}`).join("; ");
           falhas.add(`resposta "${c.p.slice(0, 26)}": ${resp.resposta.slice(0, 220)}${itens ? ` [itens: ${itens.slice(0, 200)}]` : ""}`);
