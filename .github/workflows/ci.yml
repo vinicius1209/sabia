@@ -53,6 +53,10 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: node scripts/conferir-pacote.mjs
+      # o navegador que acabou de ser baixado abre de verdade, com a máscara do
+      # telão (no Linux do CI faltam bibliotecas do sistema para abrir o Chromium)
+      - if: runner.os != 'Linux'
+        run: npm run test:mascara
 
   # Tag v* vira uma versão no GitHub, com o pacote anexado. O "sabia.tgz" sem
   # número é o que o comando de uma linha do README baixa (sempre a última).
