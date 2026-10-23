@@ -41,15 +41,27 @@ export function rodar(
 ): Promise<string> {
   fs.mkdirSync(PASTA, { recursive: true });
   return new Promise((ok, falha) => {
-    if (sinal?.aborted) return falha(new Error(`${cmd} parado antes de começar`));
+    const nome = path.basename(cmd).replace(/\.(exe|cmd|bat)$/i, "");
+    if (sinal?.aborted) return falha(new Error(`${nome} parado antes de começar`));
+    let alvo: ComoRodar;
+    try {
+      alvo = comoRodar(cmd);
+    } catch (e) {
+      return falha(e instanceof Error ? e : new Error(String(e)));
+    }
     // `signal` do spawn: abortar mata o processo (SIGTERM) e dispara "error"
-    const p = spawn(cmd, args, { cwd: PASTA, stdio: ["pipe", "pipe", "pipe"], signal: sinal });
+    const p = spawn(alvo.arquivo, [...alvo.antes, ...args], {
+      cwd: PASTA,
+      stdio: ["pipe", "pipe", "pipe"],
+      signal: sinal,
+      windowsHide: true,
+    });
     let saida = "";
     let erro = "";
     let resto = "";
     const timer = setTimeout(() => {
       p.kill("SIGTERM");
-      falha(new Error(`${cmd} passou de ${prazoMs / 1000}s sem responder`));
+      falha(new Error(`${nome} passou de ${prazoMs / 1000}s sem responder`));
     }, prazoMs);
     p.stdout.on("data", (d: Buffer) => {
       const txt = d.toString();
@@ -63,13 +75,13 @@ export function rodar(
     p.stderr.on("data", (d) => (erro += d));
     p.on("error", (e) => {
       clearTimeout(timer);
-      falha(new Error(sinal?.aborted ? `${cmd} parado a pedido` : `Não consegui rodar "${cmd}": ${e.message}`));
+      falha(new Error(sinal?.aborted ? `${nome} parado a pedido` : `Não consegui rodar "${nome}": ${e.message}`));
     });
     p.on("close", (codigo) => {
       clearTimeout(timer);
       if (aoLinha && resto.trim()) aoLinha(resto);
       if (codigo === 0) ok(saida);
-      else falha(new Error(`${cmd} saiu com ${codigo}: ${(erro || saida).trim().slice(0, 300)}`));
+      else falha(new Error(`${nome} saiu com ${codigo}: ${(erro || saida).trim().slice(0, 300)}`));
     });
     p.stdin.end(entrada);
   });
@@ -200,6 +212,11 @@ export async function pedirAgy(modelo: string, { sistema, prompt, schema, sinal 
     "--disable-slash-commands",
     "--print-timeout", "2m",
   ];
+  // O agy recebe o prompt como argumento, e o Windows corta a linha de comando
+  // em 32.767 caracteres: uma pergunta com o boletim inteiro passaria disso.
+  if (process.platform === "win32" && args.join(" ").length > 30_000) {
+    throw new Error("Esta pergunta ficou grande demais para o Antigravity no Windows. Troque para o Claude ou o Codex.");
+  }
   const bruto = await rodar(exe("agy"), args, "", 150_000, undefined, sinal);
   const r = JSON.parse(bruto) as { status?: string; structured_output?: unknown; response?: string };
   if (r.status === "SUCCESS" && r.structured_output != null) return r.structured_output;
@@ -238,20 +255,74 @@ export function motorPorAssinatura({ sistema, registro }: DepsDoMotor, qual: Qua
  * (Não garante que está logada: isso só a primeira chamada diz.)
  */
 export function caminhoDaCli(cmd: QualCli): string | null {
+  const windows = process.platform === "win32";
   // O Sabiá pode ser aberto com um PATH curto (pelo Finder, por um serviço):
   // procura também onde as CLIs costumam morar, e roda pelo caminho achado.
-  const extras = [path.join(os.homedir(), ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin"];
-  const pastas = [...(process.env.PATH ?? "").split(path.delimiter), ...extras];
+  const extras = windows
+    ? [
+        path.join(os.homedir(), ".local", "bin"), // instalador nativo do Claude Code
+        ...(process.env.APPDATA ? [path.join(process.env.APPDATA, "npm")] : []), // npm install -g
+      ]
+    : [path.join(os.homedir(), ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin"];
+  const pastas = [...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean), ...extras];
+  // No Windows o arquivo tem extensão (claude.exe, codex.cmd); o .exe vem
+  // antes, e o .ps1 do npm fica de fora (o Node não roda PowerShell direto).
+  const nomes = windows ? [".exe", ".cmd", ".bat"].map((ext) => cmd + ext) : [cmd];
   for (const d of pastas) {
-    const p = path.join(d, cmd);
-    try {
-      fs.accessSync(p, fs.constants.X_OK);
-      return p;
-    } catch {
-      // não está nesta pasta
+    for (const n of nomes) {
+      const p = path.join(d, n);
+      try {
+        fs.accessSync(p, windows ? fs.constants.F_OK : fs.constants.X_OK);
+        if (fs.statSync(p).isFile()) return p;
+      } catch {
+        // não está nesta pasta
+      }
     }
   }
   return null;
+}
+
+/** Como rodar uma CLI: o programa, e os argumentos que vão antes dos nossos. */
+export interface ComoRodar {
+  arquivo: string;
+  antes: string[];
+}
+
+/**
+ * O script que um atalho .cmd do npm roda. O npm instala CLIs no Windows como
+ * um .cmd que termina em:
+ *
+ *   "%_prog%"  "%dp0%\node_modules\@anthropic-ai\claude-code\cli.js" %*
+ *
+ * Devolve o caminho depois do %dp0% (relativo à pasta do .cmd), ou null.
+ */
+export function alvoDoAtalhoNpm(texto: string): string | null {
+  const m = texto.match(/"%~?dp0%?\\?([^"%]+)"\s+%\*/i);
+  return m ? m[1] : null;
+}
+
+/**
+ * No Windows, o Node se recusa a executar .cmd sem passar pelo shell (desde a
+ * correção de segurança de abril de 2024), e pelo shell as aspas do prompt e
+ * do JSON Schema se perderiam. Então o .cmd do npm é lido e o script por trás
+ * dele roda direto com o Node. Executável de verdade (.exe) roda como está.
+ */
+export function comoRodar(caminho: string): ComoRodar {
+  if (!/\.(cmd|bat)$/i.test(caminho)) return { arquivo: caminho, antes: [] };
+  let texto = "";
+  try {
+    texto = fs.readFileSync(caminho, "utf8");
+  } catch {
+    // cai na mensagem abaixo
+  }
+  const alvo = alvoDoAtalhoNpm(texto);
+  if (!alvo) {
+    throw new Error(
+      `Não sei rodar ${path.basename(caminho)} (não é um atalho do npm). Instale a CLI pelo npm ou pelo instalador oficial.`
+    );
+  }
+  const script = path.join(path.dirname(caminho), alvo);
+  return /\.exe$/i.test(script) ? { arquivo: script, antes: [] } : { arquivo: process.execPath, antes: [script] };
 }
 
 export const cliInstalada = (cmd: QualCli): boolean => caminhoDaCli(cmd) !== null;

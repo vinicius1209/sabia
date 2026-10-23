@@ -4,8 +4,11 @@
  *   npm start           sobe o agente e abre a tela no navegador
  *   npm run doctor      diz o que falta para funcionar
  *
+ * Instalado como pacote (npx ou npm -g), os mesmos comandos são `sabia` e
+ * `sabia doctor`. Este arquivo vira dist/sabia.mjs (scripts/empacotar.mjs).
+ *
  * SABIA_AGENTE escolhe o pacote em src/agentes/<id> (padrão: sabia).
- * SABIA_ABRIR=0 não abre o navegador sozinho.
+ * SABIA_ABRIR=0 (ou --sem-abrir) não abre o navegador sozinho.
  * SABIA_AGORA=2026-09-26T10:00:00-03:00 congela o relógio (só para ensaio).
  */
 import { spawn } from "node:child_process";
@@ -24,23 +27,58 @@ import { criarServidor } from "./nucleo/servidor.ts";
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pastaWeb = path.join(raiz, "web", "dist");
 
+/** Rodando do código-fonte (git clone) ou do pacote instalado? Muda só os comandos sugeridos. */
+const doFonte = fs.existsSync(path.join(raiz, "src", "cli.ts"));
+const COMANDO = {
+  iniciar: doFonte ? "npm start" : "sabia",
+  doctor: doFonte ? "npm run doctor" : "sabia doctor",
+  fontes: doFonte ? "npm run doctor -- --fontes" : "sabia doctor --fontes",
+};
+
 const { importouDotEnv } = carregarConfig(raiz);
 const migrouNavegador = migrarNavegador(raiz);
 congelarRelogio(process.env.SABIA_AGORA);
 
 const idAgente = process.env.SABIA_AGENTE || "sabia";
 if (!/^[a-z0-9-]+$/.test(idAgente)) throw new Error(`SABIA_AGENTE inválido: ${idAgente}`);
-const pacote = (await import(`./agentes/${idAgente}/index.ts`)).default as PacoteDeAgente;
+// Os pacotes conhecidos ficam num mapa com caminho fixo: assim o empacotador
+// (scripts/empacotar.mjs) enxerga e leva junto. Outro pacote em src/agentes/
+// continua funcionando quando se roda do código-fonte.
+const PACOTES: Record<string, () => Promise<{ default: PacoteDeAgente }>> = {
+  sabia: () => import("./agentes/sabia/index.ts"),
+};
+const caminhoDoPacote = `./agentes/${idAgente}/index.ts`;
+const pacote = (await (PACOTES[idAgente]?.() ?? (import(caminhoDoPacote) as Promise<{ default: PacoteDeAgente }>)))
+  .default;
 
-const comando = process.argv[2] ?? "iniciar";
+// `sabia --sem-abrir` é o iniciar com uma opção, e não um comando
+const primeiro = process.argv[2];
+const SOZINHOS = ["--help", "-h", "--versao", "--version", "-v"];
+const comando = !primeiro || (primeiro.startsWith("-") && !SOZINHOS.includes(primeiro)) ? "iniciar" : primeiro;
 
 if (comando === "doctor") {
   await doctor();
 } else if (comando === "iniciar") {
   await iniciar();
+} else if (["ajuda", "--help", "-h"].includes(comando)) {
+  ajuda();
+} else if (["--versao", "--version", "-v"].includes(comando)) {
+  const { version } = JSON.parse(fs.readFileSync(path.join(raiz, "package.json"), "utf8")) as { version: string };
+  console.log(version);
 } else {
-  console.log(`Comando desconhecido: ${comando}. Use "iniciar" ou "doctor".`);
-  process.exit(1);
+  console.log(`\n  Comando desconhecido: ${comando}.`);
+  ajuda();
+  process.exitCode = 1;
+}
+
+function ajuda() {
+  console.log(`
+  ${pacote.nome}: ${pacote.descricao}
+
+    ${COMANDO.iniciar.padEnd(28)}sobe o agente e abre a tela no navegador
+    ${COMANDO.doctor.padEnd(28)}diz o que falta para funcionar
+    ${COMANDO.fontes.padEnd(28)}entra em cada fonte e confere se lê com segurança
+`);
 }
 
 async function iniciar() {
@@ -54,7 +92,15 @@ async function iniciar() {
   const HOST = process.env.HOST || "127.0.0.1";
 
   if (!fs.existsSync(path.join(pastaWeb, "index.html"))) {
-    console.log("\n  A tela ainda não foi compilada. Rode: npm run build:web\n");
+    console.log(
+      doFonte
+        ? "\n  A tela ainda não foi compilada. Rode: npm run build:web\n"
+        : "\n  O pacote veio sem a tela (web/dist). Instale de novo pelo endereço da versão.\n"
+    );
+  }
+  if (!(await garantirChromium())) {
+    process.exitCode = 1;
+    return;
   }
 
   const { app, motor, encerrar } = criarServidor({
@@ -77,13 +123,14 @@ async function iniciar() {
         ? "  Acesso: só esta máquina (HOST=0.0.0.0 libera a rede)\n"
         : `  ATENÇÃO: aberto na rede em ${HOST}. Qualquer um no wifi lê os dados da conta.\n`
     );
-    if (process.env.SABIA_ABRIR !== "0" && !process.env.CI) abrirNavegador(url);
+    const abrir = process.env.SABIA_ABRIR !== "0" && !process.argv.includes("--sem-abrir") && !process.env.CI;
+    if (abrir) abrirNavegador(url);
   });
 
   servidor.on("error", (e: NodeJS.ErrnoException) => {
     if (e.code !== "EADDRINUSE") throw e;
     console.log(`\n  A porta ${PORT} já está em uso: provavelmente outro ${pacote.nome} está rodando.`);
-    console.log(`  Feche o outro, ou suba em outra porta: PORT=${PORT + 1} npm start\n`);
+    console.log(`  Feche o outro, ou suba em outra porta: ${comPorta(PORT + 1)}\n`);
     process.exit(1);
   });
 
@@ -104,28 +151,66 @@ async function iniciar() {
   process.on("SIGTERM", sair);
 }
 
+/** Como subir em outra porta, no jeito de definir variável de cada sistema. */
+function comPorta(porta: number) {
+  return process.platform === "win32"
+    ? `no PowerShell, $env:PORT=${porta}; ${COMANDO.iniciar}  (no cmd: set PORT=${porta} && ${COMANDO.iniciar})`
+    : `PORT=${porta} ${COMANDO.iniciar}`;
+}
+
 function abrirNavegador(url: string) {
-  const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-  spawn(cmd, [url], { stdio: "ignore", detached: true, shell: process.platform === "win32" })
+  // No Windows, "start" é comando do cmd, e não um programa. O "" vazio é o
+  // título da janela: sem ele, o start trataria a URL como título.
+  const [cmd, args] =
+    process.platform === "darwin"
+      ? ["open", [url]]
+      : process.platform === "win32"
+        ? ["cmd", ["/c", "start", "", url]]
+        : ["xdg-open", [url]];
+  spawn(cmd, args, { stdio: "ignore", detached: true, windowsHide: true })
     .on("error", () => {})
     .unref();
+}
+
+/** O Chromium do Playwright está baixado? */
+async function chromiumPronto(): Promise<boolean> {
+  try {
+    const { chromium } = await import("playwright");
+    return fs.existsSync(chromium.executablePath());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Na primeira vez num computador, baixa o navegador que o Sabiá opera (uma vez
+ * só: fica no cache do Playwright e serve para as próximas versões também).
+ * Sem isso, a pessoa precisaria saber rodar "npx playwright install chromium".
+ */
+async function garantirChromium(): Promise<boolean> {
+  if (await chromiumPronto()) return true;
+  console.log("\n  Primeira vez neste computador: baixando o navegador que o Sabiá usa (uns 150 MB, uma vez só)...\n");
+  const { createRequire } = await import("node:module");
+  const cliDoPlaywright = path.join(path.dirname(createRequire(import.meta.url).resolve("playwright/package.json")), "cli.js");
+  const codigo = await new Promise<number>((ok) =>
+    spawn(process.execPath, [cliDoPlaywright, "install", "chromium"], { stdio: "inherit" })
+      .on("error", () => ok(1))
+      .on("close", (c) => ok(c ?? 1))
+  );
+  if (codigo === 0 && (await chromiumPronto())) return true;
+  console.log("\n  Não consegui baixar o navegador. Confira a internet e rode de novo.\n");
+  return false;
 }
 
 async function doctor() {
   const ok = (b: boolean) => (b ? "✓" : "✗");
   const linhas: string[] = [];
   const [maior] = process.versions.node.split(".").map(Number);
-  linhas.push(`${ok(maior >= 24)} Node ${process.versions.node} (precisa 24 ou mais novo)`);
-  linhas.push(`${ok(fs.existsSync(path.join(pastaWeb, "index.html")))} Tela compilada (npm run build:web)`);
-
-  let chromium = false;
-  try {
-    const { chromium: c } = await import("playwright");
-    chromium = fs.existsSync(c.executablePath());
-  } catch {
-    chromium = false;
-  }
-  linhas.push(`${ok(chromium)} Chromium do Playwright (npx playwright install chromium)`);
+  linhas.push(`${ok(maior >= 22)} Node ${process.versions.node} (precisa 22.12 ou mais novo)`);
+  linhas.push(
+    `${ok(fs.existsSync(path.join(pastaWeb, "index.html")))} Tela compilada${doFonte ? " (npm run build:web)" : ""}`
+  );
+  linhas.push(`${ok(await chromiumPronto())} Navegador (o ${COMANDO.iniciar} baixa sozinho na primeira vez)`);
 
   linhas.push(`\n  Dados em ${home()}`);
   for (const c of pacote.campos) {
@@ -151,7 +236,7 @@ async function doctor() {
   console.log(`\n  ${pacote.nome} · diagnóstico\n\n${linhas.map((l) => (l.startsWith("\n") ? l : `  ${l}`)).join("\n")}\n`);
 
   if (process.argv.includes("--fontes")) await conferirFontes();
-  else console.log("  Para entrar em cada fonte de verdade e conferir: npm run doctor -- --fontes\n");
+  else console.log(`  Para entrar em cada fonte de verdade e conferir: ${COMANDO.fontes}\n`);
 }
 
 /** A porta do app está em uso? (ele segura o perfil do navegador) */
@@ -181,7 +266,7 @@ async function conferirFontes() {
     await pacote.preparar?.({
       passo: () => {},
       pedirCodigo: async () => {
-        throw new Error("A sessão expirou e pediu o código de verificação: entre uma vez pela tela (npm start).");
+        throw new Error(`A sessão expirou e pediu o código de verificação: entre uma vez pela tela (${COMANDO.iniciar}).`);
       },
     });
   } catch (e) {

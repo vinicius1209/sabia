@@ -8,7 +8,10 @@ import sabia from "../src/agentes/sabia/index.ts";
 import { completarPlano, criarAgente, PerguntaInterrompida } from "../src/nucleo/agente.ts";
 import type { Motor } from "../src/nucleo/motores/index.ts";
 import type { Entrada } from "../src/nucleo/prompt.ts";
-import { rodar } from "../src/nucleo/motores/cli.ts";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { alvoDoAtalhoNpm, comoRodar, rodar } from "../src/nucleo/motores/cli.ts";
 import type { EventoDoTurno } from "../src/nucleo/protocolo.ts";
 import { criarRegistro, type Plano } from "../src/nucleo/registro.ts";
 
@@ -238,9 +241,82 @@ describe("laco do agente", () => {
   test("a CLI do motor e morta ao parar (nao fica rodando e gastando a assinatura)", { timeout: 3000 }, async () => {
     const parar = new AbortController();
     const inicio = Date.now();
-    const chamada = rodar("sleep", ["30"], "", 60_000, undefined, parar.signal);
+    // um processo que demora 30 s, em qualquer sistema (o "sleep" não existe no Windows)
+    const chamada = rodar(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], "", 60_000, undefined, parar.signal);
     setTimeout(() => parar.abort(), 50);
     await assert.rejects(chamada, /parado a pedido/);
     assert.ok(Date.now() - inicio < 2000, "a CLI seguiu rodando depois de parar");
+  });
+});
+
+/* ------------------------ CLIs no Windows ------------------------ */
+
+// O atalho que o npm cria no Windows (cmd-shim), como ele é de verdade
+const ATALHO_NPM = [
+  "@ECHO off",
+  "GOTO start",
+  ":find_dp0",
+  "SET dp0=%~dp0",
+  "EXIT /b",
+  ":start",
+  "SETLOCAL",
+  "CALL :find_dp0",
+  'IF EXIST "%dp0%\\node.exe" (',
+  '  SET "_prog=%dp0%\\node.exe"',
+  ") ELSE (",
+  '  SET "_prog=node"',
+  "  SET PATHEXT=%PATHEXT:;.JS;=;%",
+  ")",
+  'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*',
+].join("\r\n");
+
+describe("CLI pelo atalho .cmd do npm (Windows)", () => {
+  test("acha o script por tras do atalho, nos formatos novo e antigo", () => {
+    assert.equal(alvoDoAtalhoNpm(ATALHO_NPM), "node_modules\\@anthropic-ai\\claude-code\\cli.js");
+    assert.equal(alvoDoAtalhoNpm('@"%~dp0\\node_modules\\@openai\\codex\\bin\\codex.js"   %*'), "node_modules\\@openai\\codex\\bin\\codex.js");
+    assert.equal(alvoDoAtalhoNpm("@echo off\r\nfaz-outra-coisa.exe %*"), null);
+  });
+
+  test("executavel de verdade roda como esta", () => {
+    assert.deepEqual(comoRodar("C:\\Users\\x\\.local\\bin\\claude.exe"), {
+      arquivo: "C:\\Users\\x\\.local\\bin\\claude.exe",
+      antes: [],
+    });
+  });
+
+  test("um .cmd do npm roda pelo Node, e os argumentos chegam intactos", { timeout: 10_000 }, async () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "sabia-cmd-"));
+    try {
+      const script = path.join(pasta, "node_modules", "fake", "cli.js");
+      fs.mkdirSync(path.dirname(script), { recursive: true });
+      fs.writeFileSync(
+        script,
+        "let e='';process.stdin.on('data',d=>e+=d).on('end',()=>console.log(JSON.stringify({args:process.argv.slice(2),entrada:e})));"
+      );
+      fs.writeFileSync(path.join(pasta, "fake.cmd"), ATALHO_NPM.replace("@anthropic-ai\\claude-code\\cli.js", "fake\\cli.js").replaceAll("\\", path.sep));
+      // o que o Claude recebe de verdade: prompt com aspas, acento e quebra de linha, e um JSON Schema
+      const dificeis = [
+        "--system-prompt",
+        'Você é "o Sabiá".\nNão invente & não chute: 100% <certo> | %PATH% ^ !',
+        "--json-schema",
+        JSON.stringify({ type: "object", properties: { resposta: { type: "string", description: 'aspas "duplas"' } } }),
+        "",
+        "C:\\caminho com espaço\\",
+      ];
+      const saida = await rodar(path.join(pasta, "fake.cmd"), dificeis, "pergunta: e em física?", 10_000);
+      assert.deepEqual(JSON.parse(saida), { args: dificeis, entrada: "pergunta: e em física?" });
+    } finally {
+      fs.rmSync(pasta, { recursive: true, force: true });
+    }
+  });
+
+  test(".cmd que nao e do npm vira mensagem clara, e nao um erro estranho do Windows", async () => {
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "sabia-cmd-"));
+    try {
+      fs.writeFileSync(path.join(pasta, "outro.cmd"), "@echo off\r\nfaz-outra-coisa.exe %*");
+      await assert.rejects(rodar(path.join(pasta, "outro.cmd"), [], "", 5_000), /não é um atalho do npm/);
+    } finally {
+      fs.rmSync(pasta, { recursive: true, force: true });
+    }
   });
 });

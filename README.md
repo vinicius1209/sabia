@@ -18,23 +18,35 @@ ele está certo. Os slides e o roteiro estão em [`docs/`](docs/).
 
 **Somente leitura.** Ele consulta, nunca envia mensagem para professor nem altera nada.
 
-## Rodando
+## Usar (Windows, macOS ou Linux)
 
-Precisa de **Node 24 ou mais novo** (roda TypeScript direto, sem compilar o
-servidor) e de uma conta do ClassApp que seja sua, ou com autorização de quem é
-dono dela.
+Com o **Node 22.12 ou mais novo** e o **Claude Code ou o Codex** logados no
+computador, um comando só:
+
+```bash
+npx --yes https://github.com/vinicius1209/sabia/releases/latest/download/sabia.tgz
+```
+
+Na primeira vez ele baixa o navegador que vai operar (uma vez só) e abre a
+tela, com um **guia de três passos**: escolher a IA, preencher a conta do
+ClassApp e fazer o primeiro login (o código 2FA é pedido ali mesmo). Nada de
+editar arquivo, nada de baixar o código.
+
+Passo a passo, como deixar instalado (`sabia`, `sabia doctor`) e o que fazer
+quando algo dá errado, inclusive no Windows: [`docs/instalar.md`](docs/instalar.md).
+
+## Rodar do código-fonte
+
+Para mexer no Sabiá. Precisa do **Node 24** (ou 22.18+), que roda o
+TypeScript direto, sem compilar o servidor:
 
 ```bash
 npm install
-npx playwright install chromium
 npm start
 ```
 
-O `npm start` compila a tela, sobe o agente e abre o navegador. Na primeira vez
-aparece um **guia de três passos**: escolher a IA, preencher a conta e fazer o
-primeiro login (o código 2FA é pedido ali mesmo). Nada de editar arquivo.
-
-Se algo não funcionar, `npm run doctor` diz o que falta.
+O `npm start` compila a tela, sobe o agente, baixa o navegador se faltar e abre
+a tela. Se algo não funcionar, `npm run doctor` diz o que falta.
 
 ## O que ele sabe consultar
 
@@ -144,9 +156,11 @@ prazo, ele desiste e avisa. Nada é contornado.
 npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
 npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
 npm run check      # tipos do servidor e da tela
-npm test           # 144 testes, sem rede e sem navegador, ~2 s
+npm test           # 148 testes, sem rede e sem navegador, ~2 s
 npm run test:real  # as 5 capacidades contra os sistemas reais
 npm run test:mascara  # a máscara do telão, num Chromium com páginas fictícias
+npm run build      # o pacote: tela + dist/sabia.mjs (o que o npx instala)
+node scripts/conferir-pacote.mjs  # empacota, instala numa pasta limpa e sobe
 npm run bench      # compara motores no trabalho real do agente
 ```
 
@@ -221,15 +235,16 @@ o mesmo contrato: tela, prompt e cartões continuam iguais.
 ## Estrutura
 
 ```
+bin/sabia.mjs     o comando `sabia` do pacote (confere a versão do Node)
 src/
-  cli.ts          ponto de entrada (iniciar, doctor)
+  cli.ts          ponto de entrada (iniciar, doctor, ajuda)
   nucleo/         o harness: laço, motores, protocolo, servidor, config
   agentes/sabia/  o pacote: persona, capacidades, login, mascote
 web/              a tela (React + shadcn, no padrão do blocks.so)
 ui/               a tela antiga, em /classico, até a nova ser aprovada
 test/             unidade (sem rede) e integração (sistemas reais)
 docs/             slides, roteiro da apresentação, arquitetura, mascote
-scripts/          PDF dos slides, geração do mascote, benchmark de motores
+scripts/          empacotar e conferir o pacote, PDF dos slides, mascote, benchmark
 offline/          primeira versão, simulação com dados fictícios
 ```
 

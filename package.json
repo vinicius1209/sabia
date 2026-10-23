@@ -1,6 +1,6 @@
 {
   "name": "sabia",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Sabiá: agente de IA somente leitura que opera o ClassApp e o Portal Activesoft ao vivo, com Playwright. Feito para a Exposalê.",
@@ -11,8 +11,19 @@
     "url": "https://github.com/vinicius1209/sabia.git"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=22.12"
   },
+  "bin": {
+    "sabia": "bin/sabia.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "web/dist/",
+    "ui/",
+    "README.md",
+    "LICENSE"
+  ],
   "workspaces": [
     "web"
   ],
@@ -20,15 +31,17 @@
     "start": "node src/cli.ts",
     "prestart": "npm run build:web --silent",
     "doctor": "node src/cli.ts doctor",
-    "dev": "SABIA_ABRIR=0 node --watch src/cli.ts",
+    "dev": "node --watch src/cli.ts iniciar --sem-abrir",
     "dev:web": "npm run dev -w @sabia/web",
     "build:web": "npm run build -w @sabia/web",
     "check": "tsc --noEmit && npm run typecheck -w @sabia/web",
-    "test": "node --test 'test/unidade.test.ts' 'test/doisfatores.test.ts' 'test/agente.test.ts' 'test/nucleo.test.ts'",
-    "test:real": "node --test 'test/integracao.test.ts'",
-    "test:mascara": "node --test 'test/mascara.test.ts'",
+    "test": "node --test test/unidade.test.ts test/doisfatores.test.ts test/agente.test.ts test/nucleo.test.ts",
+    "test:real": "node --test test/integracao.test.ts",
+    "test:mascara": "node --test test/mascara.test.ts",
     "bench": "node scripts/bench.ts",
-    "pdf": "node scripts/pdf.mjs"
+    "pdf": "node scripts/pdf.mjs",
+    "build": "npm run build:web && node scripts/empacotar.mjs",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@google/genai": "^2.24.0",
@@ -40,6 +53,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.3",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
 }

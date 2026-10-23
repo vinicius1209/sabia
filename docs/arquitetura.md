@@ -131,6 +131,14 @@ Dois achados dessa integração:
 - O validador da CLI do Claude não conhece o `$schema` do draft 2020-12, que é o
   padrão do Zod: o schema vai no formato draft-7.
 
+**No Windows**, as CLIs instaladas pelo npm são atalhos `.cmd`, e o Node se
+recusa a executá-los sem o shell (correção de segurança de abril de 2024). Pelo
+shell, as aspas do prompt e do JSON Schema se perderiam. Então `comoRodar()`
+lê o atalho e roda o script por trás dele direto com o Node; `.exe` (o
+instalador nativo do Claude) roda como está. Há um teste que roda um `.cmd`
+falso com aspas, acentos, quebras de linha e JSON nos argumentos, e o CI roda a
+suíte inteira também no Windows.
+
 ## Os dados sem margem para interpretação
 
 O modelo erra menos quando o dado já diz o que é. Cada capacidade entrega o dado
@@ -258,8 +266,11 @@ os blocos de chat do [blocks.so](https://github.com/ephraimduncan/blocks)
 ## Os arquivos, por responsabilidade
 
 ```
+bin/sabia.mjs            o comando do pacote: confere o Node e chama dist/sabia.mjs
+scripts/empacotar.mjs    src/ vira dist/sabia.mjs (o Node não roda .ts de dentro do node_modules)
+scripts/conferir-pacote.mjs  empacota, instala numa pasta limpa e sobe (no CI, nos 3 sistemas)
 src/
-  cli.ts                 ponto de entrada: iniciar ou doctor
+  cli.ts                 ponto de entrada: iniciar, doctor ou ajuda
   nucleo/
     agente.ts            o laço de 3 fases
     registro.ts          deriva das capacidades: contratos, prompt, execução, plano B
