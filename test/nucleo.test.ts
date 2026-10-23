@@ -150,7 +150,8 @@ describe("config no home", () => {
   test("salvar grava 0600 e aplica na hora; vazio apaga", () => {
     salvarConfig({ CIDADE: "Blumenau" });
     assert.equal(lerConfig("CIDADE"), "Blumenau");
-    assert.equal(fs.statSync(caminhos.config()).mode & 0o777, 0o600);
+    // permissão POSIX não existe no Windows: lá quem protege é a pasta do usuário
+    if (process.platform !== "win32") assert.equal(fs.statSync(caminhos.config().mode & 0o777, 0o600);
     salvarConfig({ CIDADE: "" });
     assert.equal(lerConfig("CIDADE"), "");
     salvarConfig({ CIDADE: "Itajaí" });
@@ -235,7 +236,8 @@ describe("impressao digital da forma de cada fonte", () => {
 
   test("so a forma e guardada, e o arquivo e 0600", () => {
     const f = path.join(HOME, "estruturas.json");
-    assert.equal(fs.statSync(f).mode & 0o777, 0o600);
+    // permissão POSIX não existe no Windows: lá quem protege é a pasta do usuário
+    if (process.platform !== "win32") assert.equal(fs.statSync(f).mode & 0o777, 0o600);
   });
 });
 
