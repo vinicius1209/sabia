@@ -151,7 +151,7 @@ describe("config no home", () => {
     salvarConfig({ CIDADE: "Blumenau" });
     assert.equal(lerConfig("CIDADE"), "Blumenau");
     // permissão POSIX não existe no Windows: lá quem protege é a pasta do usuário
-    if (process.platform !== "win32") assert.equal(fs.statSync(caminhos.config().mode & 0o777, 0o600);
+    if (process.platform !== "win32") assert.equal(fs.statSync(caminhos.config()).mode & 0o777, 0o600);
     salvarConfig({ CIDADE: "" });
     assert.equal(lerConfig("CIDADE"), "");
     salvarConfig({ CIDADE: "Itajaí" });
