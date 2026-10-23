@@ -40,6 +40,11 @@ try {
   npm(["init", "-y"], app);
   npm(["install", "--no-audit", "--no-fund", path.join(tmp, filename)], app);
 
+  // quem instala recebe o mesmo Playwright (e o mesmo Chromium) que foi testado
+  const versaoDe = (pasta) => JSON.parse(fs.readFileSync(path.join(pasta, "node_modules", "playwright", "package.json"), "utf8")).version;
+  if (versaoDe(app) !== versaoDe(raiz)) falhar(`Playwright ${versaoDe(app)} no pacote, mas ${versaoDe(raiz)} nos testes`);
+  console.log(`  ✓ Playwright ${versaoDe(app)}, o mesmo dos testes`);
+
   // o comando `sabia` pelo atalho que o npm criou (sabia.cmd no Windows)
   const versao = npm(["exec", "--no", "--", "sabia", "--versao"], app).trim();
   const esperada = JSON.parse(fs.readFileSync(path.join(raiz, "package.json"), "utf8")).version;
