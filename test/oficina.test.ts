@@ -14,7 +14,13 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const PAGINA = readFileSync(new URL("../oficina/index.html", import.meta.url), "utf8");
+/*
+ * CRLF vira LF na leitura: no Windows o git entrega o arquivo com \r\n, e os
+ * testes daqui casam o código linha a linha (split("\n"), regex com \n no
+ * meio). Sem isto a suíte passa no Mac e no Linux e quebra só no runner
+ * Windows do CI -- que é justo a máquina da oficina.
+ */
+const PAGINA = readFileSync(new URL("../oficina/index.html", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 /* ------------------------------------------------------------------
    Os quatro ajudantes que a página entrega ao código do aluno.
