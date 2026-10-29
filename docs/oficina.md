@@ -11,7 +11,7 @@ O pacote portátil não precisa de nenhuma das três.
 
 ## O pacote
 
-Um ZIP de **368 MB** (uns 870 MB e 7,6 mil arquivos depois de extrair),
+Um ZIP de **364 MB** (uns 870 MB e 7,6 mil arquivos depois de extrair),
 anexado em cada versão no GitHub (`sabia-windows-<versão>.zip`), montado pelo
 CI num runner Windows. Dentro:
 
@@ -47,13 +47,13 @@ Para montar na mão, num Windows: `npm run build:windows`.
    compactada) e ponha esse ZIP no pendrive.
 
 O passo 3 parece bobo, mas não é: a pasta extraída tem 7,6 mil arquivos, e
-copiar isso de um pendrive leva minutos por máquina. Um ZIP único de 368 MB
+copiar isso de um pendrive leva minutos por máquina. Um ZIP único de 364 MB
 copia em segundos, e extrair no disco local é rápido.
 
 Se você vai usar mais de uma chave (ver abaixo), faça um ZIP por grupo, cada
 um com a sua chave.
 
-Use pendrive **USB 3.0**. Em USB 2.0, 368 MB levam uns 2 minutos por máquina,
+Use pendrive **USB 3.0**. Em USB 2.0, 364 MB levam uns 2 minutos por máquina,
 e com 30 máquinas isso vira uma hora de oficina perdida. Dois ou três
 pendrives em paralelo também resolvem.
 

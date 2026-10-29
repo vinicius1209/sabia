@@ -284,7 +284,7 @@ ele custa caro:
 - **a chave da IA.** Trinta máquinas × quatro sessões numa chave só é um ponto
   único de falha, e a chave fica legível no `.bat`;
 - **o dado real.** Nota de verdade em trinta telas ao mesmo tempo;
-- **o tempo.** Copiar e extrair 368 MB por máquina.
+- **o tempo.** Copiar e extrair 364 MB por máquina.
 
 Nenhum desses existe quando a parte prática é um arquivo de 40 KB com dado
 inventado, e o dado real aparece só no telão, numa conta só, com autorização da

@@ -230,7 +230,7 @@ COMO USAR
 1. Copie o ZIP (sabia-windows-*.zip) do pendrive para a Área de Trabalho e
    extraia ali: clique com o botão direito e "Extrair tudo".
    Copie o ZIP, e não a pasta já extraída: são 7 mil arquivos pequenos, e
-   copiar um arquivo só de 368 MB é bem mais rápido.
+   copiar um arquivo só de 364 MB é bem mais rápido.
    Não rode direto do pendrive: o navegador fica lento demais.
    A máquina precisa de uns 1,3 GB livres (o ZIP mais a pasta extraída).
 2. Entre na pasta Sabia e dê dois cliques em Sabia.bat.
