@@ -11,8 +11,9 @@ O pacote portátil não precisa de nenhuma das três.
 
 ## O pacote
 
-Um ZIP de uns 250 MB, anexado em cada versão no GitHub
-(`sabia-windows-<versão>.zip`), montado pelo CI num runner Windows. Dentro:
+Um ZIP de **368 MB** (uns 870 MB e 7,6 mil arquivos depois de extrair),
+anexado em cada versão no GitHub (`sabia-windows-<versão>.zip`), montado pelo
+CI num runner Windows. Dentro:
 
 ```
 Sabia/
@@ -34,26 +35,35 @@ Para montar na mão, num Windows: `npm run build:windows`.
 ## Na véspera
 
 1. Baixe o `sabia-windows-<versão>.zip` da versão mais recente **uma vez**.
-2. Extraia e abra o `Sabia.bat` no Bloco de Notas. Troque
-   `COLE-A-CHAVE-AQUI` pela chave da DeepSeek. **Faça isso uma vez, aqui**, e
-   não em 30 máquinas.
-3. Copie a pasta `Sabia` para o pendrive.
+2. Extraia, abra o `Sabia.bat` no Bloco de Notas e troque `COLE-A-CHAVE-AQUI`
+   pela chave da DeepSeek. **Faça isso uma vez, aqui**, e não em 30 máquinas.
+3. **Compacte a pasta `Sabia` de novo** (botão direito → Enviar para → Pasta
+   compactada) e ponha esse ZIP no pendrive.
 
-Se você vai usar mais de uma chave (ver abaixo), faça uma cópia da pasta por
-grupo, cada uma com a sua chave.
+O passo 3 parece bobo, mas não é: a pasta extraída tem 7,6 mil arquivos, e
+copiar isso de um pendrive leva minutos por máquina. Um ZIP único de 368 MB
+copia em segundos, e extrair no disco local é rápido.
+
+Se você vai usar mais de uma chave (ver abaixo), faça um ZIP por grupo, cada
+um com a sua chave.
+
+Use pendrive **USB 3.0**. Em USB 2.0, 368 MB levam uns 2 minutos por máquina,
+e com 30 máquinas isso vira uma hora de oficina perdida. Dois ou três
+pendrives em paralelo também resolvem.
 
 ## No dia, em cada máquina
 
-1. Copie a pasta do pendrive para a **Área de Trabalho**. Não rode do
+1. Copie o ZIP do pendrive para a **Área de Trabalho** e extraia ali (botão
+   direito → Extrair tudo). Precisa de uns 1,3 GB livres. Não rode do
    pendrive: o Chromium em USB 2.0 é lento o bastante para estragar a oficina.
-2. Duplo clique no `Sabia.bat`.
+2. Entre na pasta `Sabia` e dê duplo clique no `Sabia.bat`.
 3. O Windows vai dizer "O Windows protegeu o seu computador": **Mais
    informações → Executar assim mesmo**. É por não ter assinatura digital paga.
 4. A tela abre no navegador. O aluno escolhe a IA, preenche a conta dele e faz
    o primeiro login — o código de dois fatores é pedido na própria tela.
 
 Baixar o ZIP do GitHub em 30 máquinas ao mesmo tempo **não** é uma alternativa:
-são 7,5 GB pela internet da escola, o mesmo problema que o pacote resolve.
+são 11 GB pela internet da escola, o mesmo problema que o pacote resolve.
 Pendrive, ou uma máquina baixa e compartilha na rede local.
 
 ## Entre as sessões

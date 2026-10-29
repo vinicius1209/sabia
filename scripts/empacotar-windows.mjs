@@ -118,7 +118,7 @@ async function montar() {
     console.log("  ✓ o Node embutido sobe o Sabiá e acha o Chromium da pasta");
 
     /* 7. o ZIP. O tar do Windows 10+ faz zip e é bem mais rápido que o
-          Compress-Archive do PowerShell nestes 250 MB. */
+          Compress-Archive do PowerShell nestes 7,6 mil arquivos. */
     const zip = path.join(saida, `sabia-windows-${versao}.zip`);
     console.log("  compactando...");
     execFileSync("tar", ["-a", "-c", "-f", zip, "-C", saida, "Sabia"], { stdio: "inherit" });
@@ -205,9 +205,13 @@ Não instala nada. Não pede administrador. Não baixa nada.
 
 COMO USAR
 ---------
-1. Copie esta pasta para o computador (a Área de Trabalho serve).
+1. Copie o ZIP (sabia-windows-*.zip) do pendrive para a Área de Trabalho e
+   extraia ali: clique com o botão direito e "Extrair tudo".
+   Copie o ZIP, e não a pasta já extraída: são 7 mil arquivos pequenos, e
+   copiar um arquivo só de 368 MB é bem mais rápido.
    Não rode direto do pendrive: o navegador fica lento demais.
-2. Dê dois cliques em Sabia.bat.
+   A máquina precisa de uns 1,3 GB livres (o ZIP mais a pasta extraída).
+2. Entre na pasta Sabia e dê dois cliques em Sabia.bat.
 3. A tela abre no navegador. Siga os três passos: escolher a IA,
    preencher a conta do ClassApp e fazer o primeiro login (o código
    de dois fatores é pedido na própria tela).
