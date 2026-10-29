@@ -32,19 +32,41 @@ test("o .bat roda o Node embutido, nunca o do computador", () => {
   }
 });
 
-test("cada .bat fixa o seu motor", () => {
-  assert.match(comIA, /set "LLM_PROVIDER=deepseek"/);
-  assert.match(semIA, /set "LLM_PROVIDER=local"/);
+test("cada .bat escolhe o seu motor", () => {
+  assert.match(comIA, /set "SABIA_PADRAO_LLM_PROVIDER=deepseek"/);
+  assert.match(semIA, /set "SABIA_PADRAO_LLM_PROVIDER=local"/);
 });
 
 test("o plano B não pede chave nenhuma", () => {
   assert.doesNotMatch(semIA, /DEEPSEEK_API_KEY/);
 });
 
-test("o .bat da IA avisa, em vez de subir com a chave de exemplo", () => {
-  assert.match(comIA, /DEEPSEEK_API_KEY=COLE-A-CHAVE-AQUI/);
-  assert.match(comIA, /if "%DEEPSEEK_API_KEY%"=="COLE-A-CHAVE-AQUI"/);
-  assert.match(comIA, /exit \/b 1/);
+test("a chave e o motor são padrão, não trava: a tela ainda troca", () => {
+  // variável de ambiente de verdade o config.ts não deixa a tela mexer. Se
+  // o .bat exportasse DEEPSEEK_API_KEY direto, colar uma chave nova em
+  // Ajustes não faria nada -- e a tela ainda diria "chave salva".
+  for (const bat of [comIA, semIA]) {
+    assert.doesNotMatch(bat, /^set "LLM_PROVIDER=/m);
+    assert.doesNotMatch(bat, /^set "DEEPSEEK_API_KEY=/m);
+  }
+  assert.match(comIA, /set "SABIA_PADRAO_DEEPSEEK_API_KEY=%CHAVE%"/);
+});
+
+test("a chave fica numa linha só, achável por quem não programa", () => {
+  assert.match(comIA, /^set "CHAVE=COLE-A-CHAVE-AQUI"\r$/m);
+});
+
+test("o .bat da IA avisa quando ninguém preencheu a chave", () => {
+  assert.match(comIA, /if "%CHAVE%"=="COLE-A-CHAVE-AQUI" \(/);
+  // e não exporta a chave de exemplo como se fosse chave
+  assert.match(comIA, /if not "%CHAVE%"=="COLE-A-CHAVE-AQUI" set "SABIA_PADRAO_DEEPSEEK_API_KEY=/);
+  // sem sair: dá para colar a chave na própria tela, em Ajustes
+  assert.doesNotMatch(comIA, /exit \/b 1/);
+});
+
+test("o .bat não guarda a conta do ClassApp", () => {
+  // é de cada aluno, tem de sumir com a pasta dados\ no fim da sessão
+  for (const bat of [comIA, semIA]) assert.doesNotMatch(bat, /CLASSAPP_(PHONE|PASSWORD)=/);
 });
 
 test("as linhas acabam em CRLF (o cmd erra com LF só)", () => {

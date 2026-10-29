@@ -14,6 +14,7 @@ import sabia, { quemAtende } from "../src/agentes/sabia/index.ts";
 import { criarRegistro, limparTexto } from "../src/nucleo/registro.ts";
 import { agora, cabecalhoTemporal, congelarRelogio, tabelaDeDias } from "../src/nucleo/contexto.ts";
 import { motorLocal } from "../src/nucleo/motores/local.ts";
+import { BOTAO_CONTINUAR, CAMPO_CELULAR, TROCAR_PARA_CELULAR } from "../src/agentes/sabia/browser.mjs";
 
 const registro = criarRegistro(sabia.capacidades);
 const { capacidades: CAPACIDADES, descricaoDasFontes, escolherLocal, ChamadaFerramenta, argsPadrao, Plano, Resposta, limparResposta } =
@@ -751,6 +752,38 @@ describe("executar com parametros ausentes", () => {
     } finally {
       (diario as { ler: unknown }).ler = original;
     }
+  });
+});
+
+describe("login do ClassApp: os seletores aguentam os dois idiomas", () => {
+  /*
+   * Isto ja quebrou a feira: o navegador roda com locale en-US fixo (para o
+   * calendario nao mudar de cara por maquina), o ClassApp passou a responder
+   * em ingles, e o login procurava so "entre usando o celular". O link nunca
+   * era clicado, a tela ficava no e-mail, e o campo do celular -- que so
+   * existe depois do clique -- estourava 10s de timeout sem dizer por que.
+   *
+   * As frases abaixo sao as que o classapp.com.br/auth devolve hoje, medidas
+   * na pagina real nos dois locales.
+   */
+  test("o link que troca e-mail por celular, em ingles e em portugues", () => {
+    assert.match("or login using the phone", TROCAR_PARA_CELULAR);
+    assert.match("ou entre usando o celular", TROCAR_PARA_CELULAR);
+    // e nao pega o caminho inverso, que a mesma tela mostra depois do clique
+    assert.doesNotMatch("or login using the email", TROCAR_PARA_CELULAR);
+    assert.doesNotMatch("ou entre usando o email", TROCAR_PARA_CELULAR);
+  });
+
+  test("o campo do celular nao depende de idioma nenhum", () => {
+    // name="address" e igual nos dois; o placeholder e so reserva
+    assert.ok(CAMPO_CELULAR.includes('input[name="address"]'));
+    assert.ok(/placeholder\*="Celular" i/.test(CAMPO_CELULAR), "falta o placeholder em portugues");
+    assert.ok(/placeholder\*="Phone" i/.test(CAMPO_CELULAR), "falta o placeholder em ingles");
+  });
+
+  test("o botao de avancar existe nos dois idiomas", () => {
+    assert.ok(BOTAO_CONTINUAR.includes('has-text("Continuar")'));
+    assert.ok(BOTAO_CONTINUAR.includes('has-text("Continue")'));
   });
 });
 

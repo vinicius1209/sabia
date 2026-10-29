@@ -1,6 +1,11 @@
 /** Tipos para o modulo de navegador em .mjs. */
 import type { BrowserContext, Page } from "playwright";
 
+/** Seletores do login do ClassApp, nos dois idiomas (ver browser.mjs). */
+export const TROCAR_PARA_CELULAR: RegExp;
+export const CAMPO_CELULAR: string;
+export const BOTAO_CONTINUAR: string;
+
 export function getBrowser(): Promise<{ ctx: BrowserContext; page: Page }>;
 export function closeBrowser(): Promise<void>;
 export function ensureLoggedIn(opcoes: {

@@ -98,24 +98,27 @@ async function montar() {
     // o BOM faz o Bloco de Notas mostrar os acentos certos
     fs.writeFileSync(path.join(destino, "LEIA-ME.txt"), "﻿" + leiaMe(), "utf8");
 
-    /* 6. a prova: o Node embutido roda o Sabiá e ACHA o Chromium da pasta.
-          Sem isto, um erro de caminho só apareceria na oficina. */
-    console.log("  conferindo o pacote montado...");
-    const doctor = execFileSync(
-      path.join(node, "node.exe"),
-      [path.join(app, "node_modules", "sabia", "bin", "sabia.mjs"), "doctor"],
-      {
-        env: {
-          ...process.env,
-          SABIA_HOME: path.join(tmp, "home"),
-          PLAYWRIGHT_BROWSERS_PATH: navegadores,
-        },
-        encoding: "utf8",
-      }
-    );
+    /* 6. a prova: roda o PRÓPRIO Sabia.bat, e não o node.exe por fora.
+          Assim o que é conferido é o arquivo que a pessoa vai clicar: erro
+          de sintaxe do cmd, caminho errado ou variável que não chega só
+          apareceriam na oficina. `doctor` imprime e sai (sempre com 0), e
+          `<NUL` responde ao `pause` do aviso da chave em branco. */
+    console.log("  conferindo o pacote montado (rodando o proprio Sabia.bat)...");
+    const doctor = execFileSync("cmd.exe", ["/d", "/c", "Sabia.bat doctor <NUL"], {
+      cwd: destino,
+      encoding: "utf8",
+    });
     if (!doctor.includes("✓ Navegador")) falhar(`o pacote não acha o próprio Chromium:\n${doctor}`);
     if (!doctor.includes("✓ Tela compilada")) falhar(`o pacote não tem a tela:\n${doctor}`);
-    console.log("  ✓ o Node embutido sobe o Sabiá e acha o Chromium da pasta");
+    // prova que SABIA_PADRAO_LLM_PROVIDER chegou: sem isto o .bat subiria no
+    // motor automático, que procura CLI de assinatura que a escola não tem
+    if (!doctor.includes("escolhido: deepseek")) falhar(`o .bat não entregou o motor:\n${doctor}`);
+    if (!doctor.includes("\\Sabia\\dados")) falhar(`o .bat não apontou os dados para dentro da pasta:\n${doctor}`);
+    console.log("  ✓ o Sabia.bat sobe o Sabiá, acha o Chromium da pasta e entrega o motor");
+
+    // o `dados` que o doctor acabou de criar não vai no ZIP: a pasta nasce no
+    // primeiro uso, e um config.json de fábrica confundiria quem abrir
+    fs.rmSync(path.join(destino, "dados"), { recursive: true, force: true });
 
     /* 7. o ZIP. O tar do Windows 10+ faz zip e é bem mais rápido que o
           Compress-Archive do PowerShell nestes 7,6 mil arquivos. */
@@ -147,26 +150,42 @@ export function conteudoBat(provedor) {
   const chave =
     provedor === "deepseek"
       ? [
-          "rem ===== A CHAVE DA IA =====",
-          "rem Troque COLE-A-CHAVE-AQUI pela chave do seu grupo de maquinas,",
-          "rem UMA VEZ, antes de copiar a pasta para o pendrive.",
-          'set "DEEPSEEK_API_KEY=COLE-A-CHAVE-AQUI"',
-          'set "DEEPSEEK_MODEL=deepseek-chat"',
+          "rem ===================== A CHAVE DA IA =====================",
+          "rem Troque COLE-A-CHAVE-AQUI, na linha abaixo, pela chave do seu",
+          "rem grupo de maquinas. Faca isso UMA vez, antes de copiar a pasta",
+          "rem para o pendrive, e nao depois em cada maquina.",
           "",
-          'if "%DEEPSEEK_API_KEY%"=="COLE-A-CHAVE-AQUI" (',
+          'set "CHAVE=COLE-A-CHAVE-AQUI"',
+          "",
+          "rem =========================================================",
+          "rem Daqui para baixo nao precisa mexer.",
+          "",
+          'if not "%CHAVE%"=="COLE-A-CHAVE-AQUI" set "SABIA_PADRAO_DEEPSEEK_API_KEY=%CHAVE%"',
+          'if "%CHAVE%"=="COLE-A-CHAVE-AQUI" (',
           "  echo.",
           "  echo   A chave da IA nao foi preenchida neste arquivo.",
-          "  echo   Abra o Sabia.bat no Bloco de Notas e cole a chave,",
-          "  echo   ou use o Sabia-sem-IA.bat para rodar sem IA.",
+          "  echo   Abra o Sabia.bat no Bloco de Notas e cole a chave na linha",
+          '  echo   set "CHAVE=...", ou cole na propria tela do Sabia, em',
+          "  echo   Ajustes. Sem chave nenhuma, use o Sabia-sem-IA.bat.",
           "  echo.",
           "  pause",
-          "  exit /b 1",
           ")",
         ]
       : [
           "rem O plano B: sem IA nenhuma. Continua lendo os dados reais do",
           "rem ClassApp, respondendo por regras de palavra-chave.",
         ];
+
+  // SABIA_PADRAO_: palpite inicial, e nao trava. Variavel de ambiente de
+  // verdade a tela nao consegue trocar (ver src/nucleo/config.ts), e a
+  // pessoa ficaria presa ao motor e a chave que vieram do pendrive.
+  const motor =
+    provedor === "deepseek"
+      ? [
+          'set "SABIA_PADRAO_LLM_PROVIDER=deepseek"',
+          'set "SABIA_PADRAO_DEEPSEEK_MODEL=deepseek-chat"',
+        ]
+      : ['set "SABIA_PADRAO_LLM_PROVIDER=local"'];
 
   const linhas = [
     "@echo off",
@@ -178,13 +197,16 @@ export function conteudoBat(provedor) {
     "rem Tudo da pessoa fica DENTRO desta pasta, nao no perfil do Windows:",
     "rem apagar a pasta dados\\ zera o Sabia. Faca isso entre as sessoes da",
     "rem oficina, senao o proximo aluno entra na conta do anterior.",
+    "rem A conta do ClassApp (celular e senha) NAO fica aqui: e preenchida na",
+    "rem tela, no primeiro uso, e trocada quando quiser em Ajustes.",
     'set "SABIA_HOME=%~dp0dados"',
     "",
     "rem o Chromium que veio no pacote, em vez do cache do usuario",
     'set "PLAYWRIGHT_BROWSERS_PATH=%~dp0ms-playwright"',
     "",
-    `set "LLM_PROVIDER=${provedor}"`,
     ...chave,
+    "",
+    ...motor,
     "",
     'echo   Subindo o Sabia... a tela abre no navegador. Para fechar, Ctrl+C.',
     "echo.",
@@ -221,11 +243,32 @@ Se o Windows mostrar "O Windows protegeu o seu computador", clique em
 "Mais informações" e depois em "Executar assim mesmo". Isso acontece
 porque o pacote não tem assinatura digital paga.
 
-ANTES DA OFICINA (uma vez só)
------------------------------
-Abra o Sabia.bat no Bloco de Notas e troque COLE-A-CHAVE-AQUI pela
-chave da DeepSeek. Faça isso UMA vez, antes de copiar a pasta para o
+ONDE FICA A CHAVE DA IA
+-----------------------
+No Sabia.bat, na linha
+
+    set "CHAVE=COLE-A-CHAVE-AQUI"
+
+Abra o arquivo no Bloco de Notas, troque COLE-A-CHAVE-AQUI pela chave da
+DeepSeek e salve. Faça isso UMA vez, antes de copiar a pasta para o
 pendrive, e não depois em cada máquina.
+
+Se a chave furar no meio da oficina, dá para colar outra sem fechar nada:
+na tela do Sabiá, Ajustes -> Motor de IA. Essa troca vale só até você
+apagar a pasta "dados"; depois disso volta a valer a chave do Sabia.bat.
+
+ONDE FICA O LOGIN DO CLASSAPP
+-----------------------------
+Em arquivo nenhum: celular e senha são preenchidos NA TELA.
+
+  - na primeira vez, no passo 2 do assistente que abre sozinho;
+  - depois, quando quiser: Ajustes -> a seção da conta. Troque os
+    campos, salve, e clique em "Conectar" logo abaixo para refazer o
+    login com a conta nova.
+
+Ficam gravados em dados\\config.json, só nesta máquina. É de propósito
+que não estão no Sabia.bat: a chave da IA é a mesma nas 30 máquinas, mas
+a conta é de cada aluno e precisa sumir no fim da sessão.
 
 ENTRE AS SESSÕES
 ----------------

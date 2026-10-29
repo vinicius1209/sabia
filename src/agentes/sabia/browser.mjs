@@ -4,6 +4,21 @@ import { mascaraLigada, scriptDaMascara, termosDaMascara } from "./mascara.ts";
 
 const CLASSAPP = "https://classapp.com.br";
 
+/*
+ * O navegador roda com locale en-US fixo (ver getBrowser), entao o ClassApp
+ * responde em INGLES: "or login using the phone", "Continue", "Area Code +
+ * Phone". Todo seletor de texto aqui aceita os dois idiomas, como os do
+ * Portal ja faziam -- quem abrir isto de um Chrome em portugues (ou se o
+ * ClassApp mudar de ideia sobre o idioma) continua entrando.
+ *
+ * O campo do celular tem name="address" nos dois idiomas; e dele que a
+ * gente depende primeiro, e do placeholder so como reserva.
+ */
+export const TROCAR_PARA_CELULAR = /(entre usando o celular|login using the phone)/i;
+export const CAMPO_CELULAR =
+  'input[name="address"], input[placeholder*="Celular" i], input[placeholder*="Phone" i], input[type="tel"]';
+export const BOTAO_CONTINUAR = 'button:has-text("Continuar"), button:has-text("Continue")';
+
 let ctx = null;
 let page = null;
 let entityId = null;
@@ -90,29 +105,45 @@ export async function ensureLoggedIn({ onStep = () => {}, request2faCode }) {
   const phone = process.env.CLASSAPP_PHONE;
   const password = process.env.CLASSAPP_PASSWORD;
   if (!phone || !password) {
-    throw new Error("Faltam CLASSAPP_PHONE / CLASSAPP_PASSWORD no .env");
+    throw new Error(
+      "Falta a conta do ClassApp. Preencha o celular e a senha na tela, em Ajustes."
+    );
   }
 
-  // 1) trocar para a entrada por celular
-  await clickIfVisible(p, 'text=/entre usando o celular/i', 5000);
+  // 1) trocar para a entrada por celular. A tela nasce pedindo e-mail; sem
+  //    este clique o campo do celular nem existe, e o passo 2 so descobriria
+  //    isso 10s depois, com um timeout que nao explica nada.
+  await clickIfVisible(p, `text=${TROCAR_PARA_CELULAR}`, 5000);
   await p.waitForTimeout(800);
 
   // 2) telefone
   onStep("Digitando o celular");
-  const phoneInput = p
-    .locator('input[placeholder*="Celular" i], input[type="tel"]')
-    .first();
-  await phoneInput.waitFor({ state: "visible", timeout: 10000 });
+  const phoneInput = p.locator(CAMPO_CELULAR).first();
+  try {
+    await phoneInput.waitFor({ state: "visible", timeout: 10000 });
+  } catch {
+    throw new Error(
+      "A tela de login do ClassApp nao abriu o campo do celular. " +
+        "A pagina deles pode ter mudado de formato; confira em classapp.com.br/auth."
+    );
+  }
   await phoneInput.fill(phone);
-  await clickIfVisible(p, 'button:has-text("Continuar")', 5000);
+  await clickIfVisible(p, BOTAO_CONTINUAR, 5000);
   await p.waitForTimeout(2000);
 
   // 3) senha
   onStep("Digitando a senha");
   const pwInput = p.locator('input[type="password"]').first();
-  await pwInput.waitFor({ state: "visible", timeout: 10000 });
+  try {
+    await pwInput.waitFor({ state: "visible", timeout: 10000 });
+  } catch {
+    throw new Error(
+      "O ClassApp nao pediu a senha depois do celular. " +
+        `Confira se ${phone.replace(/\d(?=\d{4})/g, "*")} e mesmo o celular da conta.`
+    );
+  }
   await pwInput.fill(password);
-  await clickIfVisible(p, 'button:has-text("Continuar")', 5000);
+  await clickIfVisible(p, BOTAO_CONTINUAR, 5000);
   await p.waitForTimeout(3500);
 
   // 4) 2FA — aqui o agente PARA e pede o codigo pra pessoa dona da conta
@@ -129,7 +160,7 @@ export async function ensureLoggedIn({ onStep = () => {}, request2faCode }) {
       .first();
     await codeInput.fill(code);
     await p.waitForTimeout(400);
-    await clickIfVisible(p, 'button:has-text("Continuar")', 5000);
+    await clickIfVisible(p, BOTAO_CONTINUAR, 5000);
     await p.waitForTimeout(3500);
   }
 

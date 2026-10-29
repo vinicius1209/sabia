@@ -11,9 +11,21 @@ import path from "node:path";
  *
  * A configuração é um mapa simples com os mesmos nomes do .env, porque
  * o resto do sistema já lê de process.env. Precedência:
- *   variável de ambiente de verdade  >  ~/.sabia/config.json  >  .env
+ *   variável de ambiente de verdade  >  ~/.sabia/config.json
+ *     >  SABIA_PADRAO_*  >  .env
  * A de ambiente vence sempre e não pode ser trocada pela tela.
  * ================================================================== */
+
+/**
+ * Variável que é PALPITE INICIAL, e não trava: SABIA_PADRAO_X entra como
+ * valor de X quando ninguém escolheu outro, e a tela continua podendo
+ * trocar (variável de ambiente de verdade a tela não consegue mexer).
+ *
+ * É assim que o Sabia.bat do pacote portátil entrega a chave da IA: a
+ * chave vem pronta do pendrive, mas se ela furar no meio da oficina dá
+ * para colar outra em Ajustes, sem fechar nada e sem editar .bat.
+ */
+const PREFIXO_PADRAO = "SABIA_PADRAO_";
 
 export function home(): string {
   return process.env.SABIA_HOME || path.join(os.homedir(), ".sabia");
@@ -46,6 +58,15 @@ function escrever(cfg: Record<string, string>) {
   fs.writeFileSync(caminhos.config(), JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 });
 }
 
+/** Os SABIA_PADRAO_X do ambiente, já sem o prefixo. */
+function padroesDoAmbiente(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k.startsWith(PREFIXO_PADRAO) && v) out[k.slice(PREFIXO_PADRAO.length)] = v;
+  }
+  return out;
+}
+
 export function lerDotEnv(arquivo: string): Record<string, string> {
   if (!fs.existsSync(arquivo)) return {};
   const out: Record<string, string> = {};
@@ -72,8 +93,11 @@ export function carregarConfig(raizDoProjeto: string): { importouDotEnv: boolean
     escrever(dotEnv);
     importouDotEnv = true;
   }
+  // o padrão entra abaixo do que a pessoa já escolheu (arquivo), por isso
+  // trocar a chave na tela gruda: o config.json vence o SABIA_PADRAO_ dali
+  // em diante, até alguém apagar a pasta dos dados
   const arquivo = lerArquivo();
-  for (const [k, v] of Object.entries({ ...dotEnv, ...arquivo })) {
+  for (const [k, v] of Object.entries({ ...dotEnv, ...padroesDoAmbiente(), ...arquivo })) {
     if (!doAmbiente.has(k)) process.env[k] = v;
   }
   return { importouDotEnv };

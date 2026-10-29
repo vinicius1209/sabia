@@ -161,6 +161,35 @@ describe("config no home", () => {
     salvarConfig({ LLM_PROVIDER: "openai" });
     assert.equal(motorEscolhido().id, "local");
   });
+
+  test("SABIA_PADRAO_ e palpite, nao trava: a tela troca por cima e gruda", () => {
+    // é como o Sabia.bat do pacote portátil entrega a chave da IA. Se ele
+    // exportasse DEEPSEEK_API_KEY direto, a oficina ficaria presa à chave do
+    // pendrive e Ajustes diria "chave salva" sem salvar nada.
+    const projeto = fs.mkdtempSync(path.join(os.tmpdir(), "sabia-projeto-"));
+    process.env.SABIA_PADRAO_CHAVE_DA_IA = "a-do-pendrive";
+
+    carregarConfig(projeto);
+    assert.equal(lerConfig("CHAVE_DA_IA"), "a-do-pendrive");
+
+    salvarConfig({ CHAVE_DA_IA: "a-colada-na-tela" });
+    assert.equal(lerConfig("CHAVE_DA_IA"), "a-colada-na-tela");
+
+    // no próximo boot o config.json vence o padrão, senão a troca na tela
+    // duraria só até fechar a janela
+    delete process.env.CHAVE_DA_IA;
+    carregarConfig(projeto);
+    assert.equal(lerConfig("CHAVE_DA_IA"), "a-colada-na-tela");
+
+    // apagar a pasta dos dados (entre as sessões) devolve a do pendrive
+    salvarConfig({ CHAVE_DA_IA: "" });
+    delete process.env.CHAVE_DA_IA;
+    carregarConfig(projeto);
+    assert.equal(lerConfig("CHAVE_DA_IA"), "a-do-pendrive");
+
+    delete process.env.SABIA_PADRAO_CHAVE_DA_IA;
+    fs.rmSync(projeto, { recursive: true, force: true });
+  });
 });
 
 /* ------------------------- motor automático ------------------------- */
