@@ -36,7 +36,13 @@ Para montar na mão, num Windows: `npm run build:windows`.
 
 1. Baixe o `sabia-windows-<versão>.zip` da versão mais recente **uma vez**.
 2. Extraia, abra o `Sabia.bat` no Bloco de Notas e troque `COLE-A-CHAVE-AQUI`
-   pela chave da DeepSeek. **Faça isso uma vez, aqui**, e não em 30 máquinas.
+   pela chave da DeepSeek, na linha
+
+   ```bat
+   set "CHAVE=COLE-A-CHAVE-AQUI"
+   ```
+
+   **Faça isso uma vez, aqui**, e não em 30 máquinas.
 3. **Compacte a pasta `Sabia` de novo** (botão direito → Enviar para → Pasta
    compactada) e ponha esse ZIP no pendrive.
 
@@ -77,8 +83,20 @@ apagar é só apagar a pasta — não sobra nada no perfil do Windows.
 
 ## As chaves da IA
 
-A oficina usa chave de API da DeepSeek, fixada no `.bat` por
-`LLM_PROVIDER=deepseek`. Dois cuidados:
+A oficina usa chave de API da DeepSeek, que o `.bat` entrega por
+`SABIA_PADRAO_LLM_PROVIDER=deepseek` e `SABIA_PADRAO_DEEPSEEK_API_KEY`.
+
+O prefixo `SABIA_PADRAO_` quer dizer **palpite inicial, e não trava**: valem
+quando ninguém escolheu outra coisa, e a tela ainda consegue trocar por cima,
+em **Ajustes → Motor de IA**. É o que salva a sessão se a chave furar no meio
+da oficina — cola-se outra na tela, sem fechar nada e sem Bloco de Notas. A
+troca vale naquela máquina até alguém apagar a pasta `dados`; depois volta a
+valer a chave do `.bat`.
+
+(Variável de ambiente comum, sem o prefixo, o Sabiá não deixa a tela trocar —
+era assim antes, e deixava a oficina presa à chave que veio do pendrive.)
+
+Dois cuidados:
 
 **Divida em mais de uma chave.** Uma chave para 30 máquinas × 4 sessões é um
 ponto único de falha: se ela for estrangulada ou o saldo acabar na segunda
@@ -95,9 +113,11 @@ copia. Para uma oficina isso é aceitável, mas use chave com limite de gasto e
 |---|---|
 | "O Windows protegeu o seu computador" | Mais informações → Executar assim mesmo |
 | a janela preta pisca e fecha | ela não deveria: o `.bat` tem `pause` no erro. Se fechou mesmo, a pasta foi copiada pela metade |
-| "A chave da IA nao foi preenchida" | o passo 2 da véspera não foi feito nesta cópia |
+| "A chave da IA nao foi preenchida" | o passo 2 da véspera não foi feito nesta cópia. O Sabiá sobe assim mesmo: dá para colar a chave em Ajustes → Motor de IA |
 | "A porta 8123 já está em uso" | já tem um Sabiá aberto nessa máquina |
 | o aluno não recebe o código de dois fatores | pavilhão de feira mata o sinal de celular. Tenha contas de demonstração de reserva |
+| o aluno quer trocar a conta do ClassApp | Ajustes → a seção da conta → salvar → **Conectar**. Não é no `.bat`: a conta só existe na tela |
+| a chave estrangulou ou acabou o saldo | cole outra em Ajustes → Motor de IA, sem fechar o Sabiá |
 | a IA parou de responder no meio | troque para o `Sabia-sem-IA.bat`: ele continua lendo os dados reais, respondendo por regras |
 | nada funciona, a rede caiu | abra o `offline/index.html` do repositório: é a simulação com dados fictícios |
 
