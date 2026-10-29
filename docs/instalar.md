@@ -2,6 +2,10 @@
 
 Funciona no **Windows, macOS e Linux**. Não precisa baixar o código.
 
+> **Laboratório de escola, oficina, muitas máquinas?** Não use este caminho:
+> ele pede Node instalado, terminal e 150 MB de download por máquina. Vá para
+> [`docs/oficina.md`](oficina.md), que usa o pacote portátil.
+
 ## Antes
 
 1. **Node 22.12 ou mais novo.** Baixe a versão LTS em [nodejs.org](https://nodejs.org)

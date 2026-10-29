@@ -35,6 +35,11 @@ editar arquivo, nada de baixar o código.
 Passo a passo, como deixar instalado (`sabia`, `sabia doctor`) e o que fazer
 quando algo dá errado, inclusive no Windows: [`docs/instalar.md`](docs/instalar.md).
 
+Para **oficina em laboratório** (muitas máquinas de Windows, sem administrador
+e sem contar com a internet da escola), existe um pacote portátil: uma pasta
+com o Node e o navegador dentro, que roda no duplo clique.
+Ver [`docs/oficina.md`](docs/oficina.md).
+
 ## Rodar do código-fonte
 
 Para mexer no Sabiá. Precisa do **Node 24** (ou 22.18+), que roda o

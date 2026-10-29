@@ -58,11 +58,38 @@ jobs:
       - if: runner.os != 'Linux'
         run: npm run test:mascara
 
+  # O Sabiá portátil para a oficina: uma pasta com o Node, o Chromium e o
+  # agente dentro, que roda sem instalar nada e sem administrador. Só pode ser
+  # montado no Windows: o Chromium é um binário por plataforma.
+  pacote-windows:
+    name: pacote portátil (Windows)
+    needs: testes
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # o Chromium do pacote NÃO vem daqui: o empacotador baixa para dentro
+      # da pasta, senão iria para o cache do runner e ficaria fora do ZIP
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      # monta o ZIP e confere o pacote montado: o node.exe embutido sobe o
+      # Sabiá e acha o Chromium da pasta
+      - run: npm run build:windows
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sabia-windows
+          path: pacote-windows/*.zip
+          if-no-files-found: error
+
   # Tag v* vira uma versão no GitHub, com o pacote anexado. O "sabia.tgz" sem
   # número é o que o comando de uma linha do README baixa (sempre a última).
   publicar:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: pacote
+    needs: [pacote, pacote-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -79,6 +106,10 @@ jobs:
       - run: |
           npm pack --ignore-scripts
           cp sabia-*.tgz sabia.tgz
-      - run: gh release create "$GITHUB_REF_NAME" sabia-*.tgz sabia.tgz --title "Sabiá $GITHUB_REF_NAME" --notes-file docs/instalar.md
+      # o ZIP portátil montado no runner Windows, para anexar na mesma versão
+      - uses: actions/download-artifact@v5
+        with:
+          name: sabia-windows
+      - run: gh release create "$GITHUB_REF_NAME" sabia-*.tgz sabia.tgz sabia-windows-*.zip --title "Sabiá $GITHUB_REF_NAME" --notes-file docs/instalar.md
         env:
           GH_TOKEN: ${{ github.token }}
