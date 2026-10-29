@@ -1,6 +1,6 @@
 {
   "name": "sabia",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "type": "module",
   "description": "Sabiá: agente de IA somente leitura que opera o ClassApp e o Portal Activesoft ao vivo, com Playwright. Feito para a Exposalê.",
