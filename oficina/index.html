@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0b7d5b" />
+<title>Oficina · escreva um assistente de escola</title>
+<!--
+  OFICINA DO SABIÁ — um arquivo, sem instalar nada, sem internet, sem conta.
+  O aluno edita os DADOS e as REGRAS na caixa da esquerda, clica em Rodar,
+  e conversa com o que ele acabou de escrever na direita.
+
+  Dado fictício. Não acessa conta nenhuma, não pede senha, não guarda nada
+  (o código do aluno fica na aba, e morre quando a aba fecha).
+
+  O roteiro da hora está em docs/roteiro-oficina.md
+-->
+<style>
+  :root{
+    --brand:#0b7d5b; --brand-2:#0ea272;
+    --bg:#eef1f0; --panel:#ffffff; --ink:#0f1f1a; --muted:#6a7b74;
+    --line:#dde3e1; --code-bg:#0f201b; --code-ink:#e8f2ee;
+    --erro:#c0392b; --ok:#0b7d5b; --atencao:#c98a00;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); overflow:hidden;
+  }
+  .app{height:100dvh;display:flex;flex-direction:column}
+
+  /* ---------- topo ---------- */
+  header{
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;
+    padding:9px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;
+  }
+  header .ave{font-size:24px}
+  header h1{margin:0;font-size:16px;font-weight:700;line-height:1.15}
+  header .sub{font-size:12px;opacity:.9;margin-top:1px}
+  header .hoje{margin-left:auto;font-size:12px;background:rgba(255,255,255,.16);
+    padding:5px 11px;border-radius:20px;white-space:nowrap}
+
+  /* ---------- faixa dos passos ---------- */
+  .passos{background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;
+    display:flex;gap:14px;padding:10px 16px;align-items:flex-start}
+  .abas{display:flex;flex-direction:column;gap:5px;flex-shrink:0}
+  .aba{display:flex;align-items:center;gap:7px;background:#f3f6f5;border:1px solid var(--line);
+    border-radius:9px;padding:5px 9px;font-size:12px;font-weight:600;color:var(--muted);
+    cursor:pointer;white-space:nowrap;text-align:left;font-family:inherit}
+  .aba .n{width:17px;height:17px;border-radius:50%;background:#dde3e1;color:#fff;
+    display:grid;place-items:center;font-size:11px;flex-shrink:0}
+  .aba.on{background:#e6f6ef;border-color:var(--brand);color:var(--brand)}
+  .aba.on .n{background:var(--brand)}
+  .passo-corpo{flex:1;min-width:0;max-height:168px;overflow-y:auto;padding-right:4px}
+  .passo-corpo h2{margin:0 0 5px;font-size:15px}
+  .passo-corpo p{margin:0 0 7px;font-size:13.5px;line-height:1.5;max-width:76ch}
+  .passo-corpo p:last-child{margin-bottom:0}
+  .passo-corpo code{background:#eef1f0;border-radius:4px;padding:1px 5px;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:12.5px}
+  .passo-corpo b{font-weight:700}
+  .trecho{position:relative;background:var(--code-bg);color:var(--code-ink);border-radius:9px;
+    padding:9px 72px 9px 12px;margin:7px 0;font-family:ui-monospace,"SF Mono",Consolas,monospace;
+    font-size:12.5px;line-height:1.5;white-space:pre;overflow-x:auto}
+  .trecho button{position:absolute;top:7px;right:8px;background:rgba(255,255,255,.14);
+    border:none;color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;
+    cursor:pointer;font-family:inherit}
+  .trecho button:hover{background:rgba(255,255,255,.26)}
+
+  /* ---------- corpo: editor | chat ---------- */
+  .corpo{flex:1;display:flex;min-height:0}
+  .col{display:flex;flex-direction:column;min-width:0;min-height:0}
+  .col.esq{flex:1.35;border-right:1px solid var(--line)}
+  .col.dir{flex:1;background:var(--bg);max-width:460px}
+
+  .barra{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex-shrink:0}
+  .barra .rotulo{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);margin-right:auto}
+  .btn{border:none;border-radius:8px;padding:7px 13px;font-size:13px;font-weight:700;
+    cursor:pointer;font-family:inherit}
+  .btn-rodar{background:var(--brand);color:#fff}
+  .btn-conferir{background:#e6f6ef;color:var(--brand);border:1px solid #bfe3d4}
+  .btn-reset{background:#f3f6f5;color:var(--muted);border:1px solid var(--line)}
+  .btn:hover{filter:brightness(.96)}
+
+  .editor{flex:1;display:flex;min-height:0;background:var(--code-bg);position:relative}
+  .gutter{padding:12px 8px 12px 12px;color:#4e6a60;background:var(--code-bg);text-align:right;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:13px;line-height:1.55;
+    overflow:hidden;white-space:pre;user-select:none;flex-shrink:0}
+  #codigo{flex:1;border:none;outline:none;resize:none;background:var(--code-bg);color:var(--code-ink);
+    padding:12px 14px 12px 4px;font-family:ui-monospace,"SF Mono",Consolas,monospace;
+    font-size:13px;line-height:1.55;white-space:pre;overflow:auto;tab-size:2}
+
+  .aviso{flex-shrink:0;padding:9px 13px;font-size:13px;line-height:1.45;display:none;
+    border-top:1px solid var(--line)}
+  .aviso.on{display:block}
+  .aviso.erro{background:#fdeeec;color:#8e2a1e;border-top-color:#f3c9c3}
+  .aviso.bom{background:#e6f6ef;color:#0a5f45;border-top-color:#bfe3d4}
+  .aviso b{font-weight:700}
+  .aviso .linha-link{background:rgba(0,0,0,.07);border-radius:4px;padding:1px 6px;cursor:pointer;
+    font-family:ui-monospace,Consolas,monospace;font-size:12px}
+
+  /* ---------- testes ---------- */
+  .testes{flex-shrink:0;max-height:40%;overflow-y:auto;background:var(--panel);
+    border-top:1px solid var(--line);display:none}
+  .testes.on{display:block}
+  .testes .cab{display:flex;align-items:center;gap:9px;padding:9px 13px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+  .testes .cab strong{font-size:13px}
+  .testes .cab .fecha{margin-left:auto;background:none;border:none;color:var(--muted);
+    font-size:17px;cursor:pointer;line-height:1}
+  .teste{display:flex;gap:9px;padding:8px 13px;border-bottom:1px dashed var(--line);font-size:13px}
+  .teste:last-child{border-bottom:none}
+  .teste .mk{flex-shrink:0;font-weight:700;width:16px}
+  .teste.p .mk{color:var(--ok)} .teste.f .mk{color:var(--erro)}
+  .teste .q{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted)}
+  .teste .porque{color:var(--erro);margin-top:2px;line-height:1.4}
+  .testes .pe{padding:8px 13px;font-size:12px;color:var(--muted);line-height:1.45}
+
+  /* ---------- chat ---------- */
+  .chat{flex:1;overflow-y:auto;padding:14px 13px 6px;display:flex;flex-direction:column;gap:9px}
+  .row{display:flex;gap:8px;align-items:flex-end;max-width:92%}
+  .row.me{align-self:flex-end;flex-direction:row-reverse}
+  .row.bot{align-self:flex-start}
+  .row>.col-msg{min-width:0}
+  .mini{width:25px;height:25px;border-radius:50%;background:var(--brand);color:#fff;
+    display:grid;place-items:center;font-size:13px;flex-shrink:0}
+  .bubble{padding:9px 13px;border-radius:15px;font-size:14.5px;line-height:1.45;
+    box-shadow:0 1px 2px rgba(0,0,0,.05);overflow-wrap:break-word}
+  .me .bubble{background:var(--brand);color:#fff;border-bottom-right-radius:5px}
+  .bot .bubble{background:#fff;border-bottom-left-radius:5px}
+  .bot .bubble.falhou{background:#fdeeec;color:#8e2a1e}
+  .hora{font-size:10px;color:var(--muted);margin:2px 6px 0}
+  .me .hora{text-align:right}
+  .divisor{align-self:center;font-size:11px;color:var(--muted);background:#e2e7e5;
+    padding:3px 11px;border-radius:20px;margin:3px 0}
+  .tab{background:#fff;border:1px solid var(--line);border-radius:13px;padding:11px;
+    margin-top:6px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .tab .k{font-size:10.5px;font-weight:700;color:var(--brand);text-transform:uppercase;
+    letter-spacing:.4px;margin-bottom:7px}
+  .tab .l{display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+    padding:6px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+  .tab .l:last-child{border-bottom:none}
+  .tab .l .v{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .digitando{display:flex;gap:4px;padding:11px 14px}
+  .digitando i{width:6px;height:6px;background:#b8c4c0;border-radius:50%;animation:b 1.3s infinite}
+  .digitando i:nth-child(2){animation-delay:.15s} .digitando i:nth-child(3){animation-delay:.3s}
+  @keyframes b{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-5px);opacity:1}}
+  .chips{display:flex;gap:7px;padding:5px 13px;overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{white-space:nowrap;background:#fff;border:1px solid var(--line);color:var(--brand);
+    font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:20px;cursor:pointer;
+    flex-shrink:0;font-family:inherit}
+  .compositor{display:flex;gap:8px;padding:8px 11px 11px;background:#fff;
+    border-top:1px solid var(--line);flex-shrink:0;align-items:flex-end}
+  .compositor textarea{flex:1;border:1px solid var(--line);border-radius:19px;padding:9px 13px;
+    font-size:14.5px;font-family:inherit;resize:none;max-height:90px;outline:none;background:#f7f9f8}
+  .compositor textarea:focus{border-color:var(--brand)}
+  .enviar{width:39px;height:39px;border-radius:50%;border:none;background:var(--brand);color:#fff;
+    font-size:17px;cursor:pointer;flex-shrink:0}
+
+  /* ---------- telas estreitas ---------- */
+  @media (max-width:860px){
+    body{overflow:auto}
+    .app{height:auto}
+    .corpo{flex-direction:column}
+    .col.esq{border-right:none;border-bottom:1px solid var(--line)}
+    .col.dir{max-width:none}
+    .editor{height:46vh} .chat{height:40vh}
+    .passos{flex-direction:column}
+    .abas{flex-direction:row;overflow-x:auto}
+    .passo-corpo{max-height:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <span class="ave">🐦</span>
+    <div>
+      <h1>Escreva um assistente de escola</h1>
+      <div class="sub">Oficina do Sabiá · dado fictício, nenhuma conta de verdade</div>
+    </div>
+    <span class="hoje" id="hoje"></span>
+  </header>
+
+  <section class="passos">
+    <div class="abas" id="abas"></div>
+    <div class="passo-corpo" id="passo-corpo"></div>
+  </section>
+
+  <div class="corpo">
+    <!-- editor -->
+    <div class="col esq">
+      <div class="barra">
+        <span class="rotulo">O código do seu assistente</span>
+        <button class="btn btn-reset" id="btn-reset">Voltar ao começo</button>
+        <button class="btn btn-conferir" id="btn-conferir">Conferir</button>
+        <button class="btn btn-rodar" id="btn-rodar">▶ Rodar</button>
+      </div>
+      <div class="editor">
+        <div class="gutter" id="gutter"></div>
+        <textarea id="codigo" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
+      <div class="aviso" id="aviso"></div>
+      <div class="testes" id="testes"></div>
+    </div>
+
+    <!-- chat -->
+    <div class="col dir">
+      <div class="barra">
+        <span class="rotulo">Conversando com ele</span>
+      </div>
+      <div class="chat" id="chat"></div>
+      <div class="chips" id="chips"></div>
+      <div class="compositor">
+        <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa..."></textarea>
+        <button class="enviar" id="btn-enviar">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     O CÓDIGO INICIAL DO ALUNO
+     Fica aqui como texto puro para não precisar de escape nenhum.
+     __PRAZO_N__ e __AVISO_N__ são trocados por datas de verdade no boot.
+     ============================================================ -->
+<script type="text/plain" id="codigo-inicial">
+/* ===============================================================
+   1. OS DADOS
+   O assistente só sabe o que está escrito aqui. Nada mais.
+   =============================================================== */
+const ESCOLA = {
+  aluno: "Ana Beatriz",
+  turma: "3º ano B",
+
+  notas: {
+    "matemática": { b1: 8.5, b2: 7.0, b3: 9.0 },
+    "português":  { b1: 9.0, b2: 8.5, b3: 8.0 },
+    "história":   { b1: 6.0, b2: 5.5, b3: 7.5 },
+    "biologia":   { b1: 7.5, b2: 8.0, b3: 9.5 },
+    "física":     { b1: 5.0, b2: 6.5, b3: 6.0 },
+  },
+
+  trabalhos: [
+    { materia: "história",  titulo: "Ditadura Militar no Brasil", prazo: "__PRAZO_1__" },
+    { materia: "biologia",  titulo: "Ciclo da água",              prazo: "__PRAZO_2__" },
+    { materia: "português", titulo: "Resenha do livro",            prazo: "__PRAZO_3__" },
+  ],
+
+  avisos: [
+    { data: "__AVISO_1__", texto: "Reunião de pais e mestres na sexta, às 19h." },
+    { data: "__AVISO_2__", texto: "Feira de profissões no ginásio. Tragam os projetos!" },
+  ],
+};
+
+/* ===============================================================
+   2. AS CONTAS
+   Tudo que o código consegue calcular, o código calcula.
+   =============================================================== */
+function media(materia) {
+  const n = ESCOLA.notas[materia];
+  return (n.b1 + n.b2 + n.b3) / 3;
+}
+
+function qualMateria(pergunta) {
+  for (const materia of Object.keys(ESCOLA.notas)) {
+    if (semAcento(pergunta).includes(semAcento(materia).slice(0, 4))) return materia;
+  }
+  return null;
+}
+
+/* ===============================================================
+   3. AS REGRAS
+   Ele lê a pergunta de cima para baixo e para na primeira que serve.
+   =============================================================== */
+function responder(pergunta) {
+  const t = semAcento(pergunta.toLowerCase());
+  const nome = ESCOLA.aluno.split(" ")[0];
+
+  // --- NOTAS ---
+  if (/nota|boletim|media|desempenho|como.*(vou|estou)/.test(t)) {
+    const materia = qualMateria(t);
+    if (materia) {
+      const n = ESCOLA.notas[materia];
+      return {
+        texto: `Sua média em <b>${materia}</b> é <b>${media(materia).toFixed(1)}</b>, ${nome}.`,
+        tabela: tabela("Boletim · " + materia, [
+          ["1º bimestre", n.b1.toFixed(1)],
+          ["2º bimestre", n.b2.toFixed(1)],
+          ["3º bimestre", n.b3.toFixed(1)],
+          ["Média",       media(materia).toFixed(1)],
+        ]),
+      };
+    }
+    return {
+      texto: `Seu boletim completo, ${nome}:`,
+      tabela: tabela("Boletim geral · " + ESCOLA.turma,
+        Object.keys(ESCOLA.notas).map(m => [m, media(m).toFixed(1)])),
+    };
+  }
+
+  // --- TRABALHOS ---
+  if (/tarefa|trabalho|dever|pendent|atividade|entregar/.test(t)) {
+    const pendentes = ESCOLA.trabalhos;
+    if (pendentes.length === 0) {
+      return { texto: `Nada pendente, ${nome}. Aproveita pra descansar. 🎉` };
+    }
+    return {
+      texto: `Você tem <b>${pendentes.length}</b> trabalho(s) para entregar, ${nome}:`,
+      tabela: tabela("Trabalhos",
+        pendentes.map(x => [x.titulo + " (" + x.materia + ")", dataBr(x.prazo)])),
+    };
+  }
+
+  // --- AVISOS ---
+  if (/aviso|comunicado|recado|reuniao|novidade/.test(t)) {
+    return {
+      texto: `Os últimos avisos da escola, ${nome}:`,
+      tabela: tabela("Mural de avisos",
+        ESCOLA.avisos.map(a => [a.texto, dataBr(a.data)])),
+    };
+  }
+
+  // --- OI ---
+  if (/^(oi|ola|bom dia|boa tarde|boa noite|opa|e ai)/.test(t)) {
+    return {
+      texto: `Oi, ${nome}! 👋 Posso ver suas <b>notas</b>, seus <b>trabalhos</b>
+              e os <b>avisos</b> da escola. O que você quer saber?`,
+    };
+  }
+
+  // --- NÃO SEI ---
+  return {
+    texto: `Isso eu não sei, ${nome}. Eu só sei o que está escrito aqui no código:
+            <b>notas</b>, <b>trabalhos</b> e <b>avisos</b> da escola.`,
+  };
+}
+</script>
+
+<script>
+"use strict";
+
+/* ============================================================
+   DATAS — geradas de hoje, para o Passo 3 funcionar em qualquer dia
+   ============================================================ */
+function doisDig(n){ return String(n).padStart(2, "0"); }
+function paraIso(d){ return d.getFullYear() + "-" + doisDig(d.getMonth()+1) + "-" + doisDig(d.getDate()); }
+function maisDias(n){ const d = new Date(); d.setDate(d.getDate() + n); return paraIso(d); }
+
+/* helpers entregues ao código do aluno (ficam fora da caixa de propósito) */
+function hoje(){ return paraIso(new Date()); }
+function dataBr(iso){
+  const p = String(iso).split("-");
+  return p.length === 3 ? p[2] + "/" + p[1] : String(iso);
+}
+function semAcento(s){
+  return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+function tabela(titulo, linhas){
+  const corpo = linhas.map(function(l){
+    return '<div class="l"><span>' + l[0] + '</span><span class="v">' + l[1] + "</span></div>";
+  }).join("");
+  return '<div class="k">' + titulo + "</div>" + corpo;
+}
+
+const CODIGO_INICIAL = document.getElementById("codigo-inicial").textContent
+  .replace("__PRAZO_1__", maisDias(-29))
+  .replace("__PRAZO_2__", maisDias(-4))
+  .replace("__PRAZO_3__", maisDias(11))
+  .replace("__AVISO_1__", maisDias(-2))
+  .replace("__AVISO_2__", maisDias(-1))
+  .trim() + "\n";
+
+/* ============================================================
+   OS PASSOS
+   ============================================================ */
+const PASSOS = [
+  {
+    aba: "Você no código",
+    titulo: "Passo 1 · Ponha você no código",
+    corpo: `
+      <p>Na <b>linha 6</b>, troque <code>Ana Beatriz</code> pelo seu nome. Depois acrescente
+      a sua matéria favorita na lista <code>notas</code> — com as notas que você quiser.</p>
+      <div class="trecho">"astronomia": { b1: 9.0, b2: 8.5, b3: 10.0 },</div>
+      <p>Clique em <b>▶ Rodar</b> e pergunte <i>"minha nota de astronomia"</i>.
+      Agora pergunte a nota de uma matéria que você <b>não</b> escreveu.
+      Ele não chuta: <b>ele só sabe o que está no código</b>.</p>`,
+  },
+  {
+    aba: "Uma regra nova",
+    titulo: "Passo 2 · Dê uma capacidade nova a ele",
+    corpo: `
+      <p>Ele não sabe nada sobre a piscina. Vamos ensinar. Acrescente estas quatro linhas
+      dentro de <code>responder</code>, logo <b>antes</b> do comentário
+      <code>// --- NÃO SEI ---</code>:</p>
+      <div class="trecho">  // --- PISCINA ---
+  if (/piscina|natacao|nadar/.test(t)) {
+    return { texto: \`A piscina abre terça e quinta, das 14h às 17h.\` };
+  }
+</div>
+      <p><b>Rode</b> e pergunte <i>"a piscina abre quando?"</i>. O <code>if</code> quer dizer
+      <b>se</b>: se a pergunta tiver uma dessas palavras, responda isso.
+      Ele respondeu uma coisa que não sabia responder um minuto atrás — e quem ensinou foi você.</p>`,
+  },
+  {
+    aba: "O erro escondido",
+    titulo: "Passo 3 · Ache o erro que já estava aqui",
+    corpo: `
+      <p>Pergunte: <i>"quais trabalhos estão pendentes?"</i> Agora olhe as datas que
+      ele devolveu, e olhe a data de hoje aqui em cima. 👆</p>
+      <p>Ele está mandando você entregar trabalhos cujo prazo <b>já venceu</b>, com toda a
+      confiança do mundo. Ele não está mentindo — <b>ninguém contou a ele que dia é hoje</b>.
+      Ache a linha <code>const pendentes = ESCOLA.trabalhos;</code> e troque por esta:</p>
+      <div class="trecho">    const pendentes = ESCOLA.trabalhos.filter(x => x.prazo >= hoje());</div>
+      <p><code>hoje()</code> devolve a data de hoje, e <code>filter</code> quer dizer
+      <b>só os que</b>. Rode e pergunte de novo: sobra um. Esse é o conserto de verdade —
+      <b>o código calcula o que a inteligência artificial não tem como saber</b>.</p>
+      <p>Clique em <b>Conferir</b> antes e depois do conserto: tem um teste vermelho
+      esperando por esse erro desde que você abriu a página.</p>`,
+  },
+  {
+    aba: "Quebre de propósito",
+    titulo: "Passo 4 · Quebre de propósito, e deixe o teste pegar",
+    corpo: `
+      <p>Clique em <b>Conferir</b>: cinco testes rodam contra o <i>seu</i> código e dizem
+      se ele ainda está de pé.</p>
+      <p>Agora estrague uma regra de propósito. Na linha das notas, apague
+      só o <code>|boletim</code>:</p>
+      <div class="trecho">  if (/nota|media|desempenho|como.*(vou|estou)/.test(t)) {</div>
+      <p><b>Rode</b>, pergunte <i>"como está meu boletim?"</i> — ele responde que não sabe —
+      e clique em <b>Conferir</b>. Um teste fica vermelho e diz exatamente qual palavra falta.
+      Devolva o <code>|boletim</code> e ele fica verde.</p>
+      <p>Teste que nunca falha não serve para nada. Cada um desses cinco existe porque
+      uma dessas regras já quebrou de verdade. O Sabiá tem quase <b>180</b>.</p>`,
+  },
+];
+
+/* ============================================================
+   OS TESTES — invariantes, não valores (nota muda, formato não)
+   ============================================================ */
+const TESTES = [
+  {
+    nome: "A média sai certa",
+    pergunta: "minha nota de matemática",
+    roda: function(agente, r){
+      const notas = agente.ESCOLA.notas;
+      const m = Object.keys(notas)[0];
+      if (!m) return "não tem nenhuma matéria em ESCOLA.notas";
+      const n = notas[m];
+      const esperada = ((n.b1 + n.b2 + n.b3) / 3).toFixed(1);
+      return r.tudo.includes(esperada)
+        ? null
+        : "a média de " + m + " devia ser " + esperada + ", e isso não apareceu na resposta";
+    },
+    ajusta: function(agente){
+      return "minha nota de " + (Object.keys(agente.ESCOLA.notas)[0] || "matemática");
+    },
+  },
+  {
+    nome: 'A palavra "boletim" é entendida',
+    pergunta: "como está meu boletim?",
+    roda: function(agente, r){
+      return r.resposta.tabela
+        ? null
+        : 'ele não trouxe o boletim. Falta a palavra "boletim" na regra das notas?';
+    },
+  },
+  {
+    nome: "Prazo vencido não aparece como pendente",
+    pergunta: "quais trabalhos estão pendentes?",
+    roda: function(agente, r){
+      const vencidos = (agente.ESCOLA.trabalhos || []).filter(function(x){
+        return x.prazo < hoje();
+      });
+      const vazou = vencidos.filter(function(x){ return r.tudo.includes(x.titulo); });
+      return vazou.length === 0
+        ? null
+        : 'ele listou "' + vazou[0].titulo + '", que venceu em ' + dataBr(vazou[0].prazo)
+          + ". Hoje é " + dataBr(hoje()) + ".";
+    },
+  },
+  {
+    nome: "Pergunta que não é da escola não é respondida",
+    pergunta: "quem ganhou a copa do mundo de 2022?",
+    roda: function(agente, r){
+      return r.resposta.tabela
+        ? "ele foi buscar dado da escola para responder uma pergunta de futebol"
+        : null;
+    },
+  },
+  {
+    nome: "Ele cumprimenta pelo nome",
+    pergunta: "oi",
+    roda: function(agente, r){
+      const nome = String(agente.ESCOLA.aluno || "").split(" ")[0];
+      return nome && r.tudo.includes(nome)
+        ? null
+        : 'ele não respondeu usando o nome que está em ESCOLA.aluno ("' + nome + '")';
+    },
+  },
+];
+/* ============================================================
+   COMPILAR O CÓDIGO DO ALUNO
+   ============================================================ */
+function compilar(fonte){
+  const corpo = '"use strict";\n' + fonte + "\n;return { ESCOLA: ESCOLA, responder: responder };";
+  const f = new Function("hoje", "dataBr", "semAcento", "tabela", corpo);
+  const agente = f(hoje, dataBr, semAcento, tabela);
+  if (typeof agente.responder !== "function") {
+    throw new Error("a função responder desapareceu do código");
+  }
+  if (!agente.ESCOLA || typeof agente.ESCOLA !== "object") {
+    throw new Error("o ESCOLA desapareceu do código");
+  }
+  return agente;
+}
+
+/* Erro de digitação em português, com a linha.
+   O que mais acontece é parêntese, chave ou aspas sem fechar — então
+   vale mais procurar isso na mão do que repetir a mensagem do navegador. */
+function explicarErro(erro, fonte){
+  const desbalanceado = acharDesbalanceado(fonte);
+  if (desbalanceado) return desbalanceado;
+
+  const msg = String(erro && erro.message || erro);
+  const traducoes = [
+    [/Unexpected end of input/i, "o código termina no meio: alguma chave <code>}</code> ou parêntese <code>)</code> não foi fechada."],
+    [/Unexpected token/i, "tem um símbolo fora de lugar. Confira vírgulas e parênteses na linha que você mexeu agora."],
+    [/Invalid or unexpected token/i, "tem uma aspa ou um acento fora de lugar. Confira o texto entre aspas na linha que você mexeu agora."],
+    [/is not defined/i, "você usou um nome que não existe: <code>" + msg.split(" ")[0] + "</code>. Erro de digitação?"],
+    [/is not a function/i, "você chamou algo que não é uma função. Confira o nome."],
+    [/Cannot read propert/i, "você pediu algo que não existe nos dados — uma matéria que não está em <code>ESCOLA.notas</code>?"],
+    [/Assignment to constant/i, "você tentou trocar o valor de um <code>const</code>, que não muda depois de criado."],
+    [/has already been declared/i, "esse nome já foi criado antes. Você duplicou um pedaço do código?"],
+  ];
+  for (const [re, texto] of traducoes) {
+    if (re.test(msg)) return { texto: texto, cru: msg };
+  }
+  return { texto: "o navegador não entendeu o código.", cru: msg };
+}
+
+/* Varre o código ignorando texto e comentário, e acha o primeiro
+   abre-sem-fecha ou fecha-sem-abre. Devolve a linha. */
+function acharDesbalanceado(fonte){
+  const pares = { "(": ")", "[": "]", "{": "}" };
+  const nomes = { "(": "parêntese", "[": "colchete", "{": "chave" };
+  const pilha = [];
+  let linha = 1, i = 0;
+  const n = fonte.length;
+
+  while (i < n) {
+    const c = fonte[i], d = fonte[i + 1];
+    if (c === "\n") { linha++; i++; continue; }
+
+    // comentários
+    if (c === "/" && d === "/") { while (i < n && fonte[i] !== "\n") i++; continue; }
+    if (c === "/" && d === "*") {
+      i += 2;
+      while (i < n && !(fonte[i] === "*" && fonte[i + 1] === "/")) { if (fonte[i] === "\n") linha++; i++; }
+      i += 2; continue;
+    }
+
+    // texto entre aspas ou crase
+    if (c === '"' || c === "'" || c === "`") {
+      const abriu = linha;
+      let fechou = false;
+      i++;
+      while (i < n) {
+        if (fonte[i] === "\\") { i += 2; continue; }
+        if (fonte[i] === "\n") {
+          if (c !== "`") break;          // "..." e '...' não atravessam a linha
+          linha++;
+        }
+        if (fonte[i] === c) { i++; fechou = true; break; }
+        i++;
+      }
+      if (!fechou) {
+        return { texto: "tem um texto aberto na <b>linha " + abriu + "</b> que nunca fecha. Falta uma "
+          + (c === "`" ? "crase <code>`</code>" : "aspa <code>" + c + "</code>")
+          + " no fim do texto.", linha: abriu };
+      }
+      continue;
+    }
+
+    if (pares[c]) { pilha.push({ c: c, linha: linha }); i++; continue; }
+    if (c === ")" || c === "]" || c === "}") {
+      const topo = pilha.pop();
+      if (!topo) {
+        return { texto: "tem um <code>" + c + "</code> sobrando na <b>linha " + linha
+          + "</b>, sem o <code>" + abreDe(c) + "</code> correspondente.", linha: linha };
+      }
+      if (pares[topo.c] !== c) {
+        return { texto: "o <code>" + topo.c + "</code> aberto na <b>linha " + topo.linha
+          + "</b> foi fechado com <code>" + c + "</code> na <b>linha " + linha + "</b>.", linha: linha };
+      }
+      i++; continue;
+    }
+    i++;
+  }
+
+  if (pilha.length) {
+    const topo = pilha[pilha.length - 1];
+    return { texto: "falta fechar o " + nomes[topo.c] + " <code>" + topo.c
+      + "</code> que você abriu na <b>linha " + topo.linha + "</b>. Falta um <code>"
+      + pares[topo.c] + "</code>.", linha: topo.linha };
+  }
+  return null;
+}
+function abreDe(c){ return c === ")" ? "(" : c === "]" ? "[" : "{"; }
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+let agente = null;
+const codigo  = document.getElementById("codigo");
+const gutter  = document.getElementById("gutter");
+const aviso   = document.getElementById("aviso");
+const chat    = document.getElementById("chat");
+const chips   = document.getElementById("chips");
+const entrada = document.getElementById("entrada");
+const painelTestes = document.getElementById("testes");
+
+/* ============================================================
+   EDITOR
+   ============================================================ */
+function renderGutter(){
+  const linhas = codigo.value.split("\n").length;
+  let s = "";
+  for (let i = 1; i <= linhas; i++) s += i + "\n";
+  gutter.textContent = s;
+  gutter.scrollTop = codigo.scrollTop;
+}
+codigo.addEventListener("input", renderGutter);
+codigo.addEventListener("scroll", function(){ gutter.scrollTop = codigo.scrollTop; });
+codigo.addEventListener("keydown", function(e){
+  if (e.key === "Tab") {                       // Tab indenta, não troca de campo
+    e.preventDefault();
+    const i = codigo.selectionStart, f = codigo.selectionEnd;
+    codigo.value = codigo.value.slice(0, i) + "  " + codigo.value.slice(f);
+    codigo.selectionStart = codigo.selectionEnd = i + 2;
+    renderGutter();
+  }
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); rodar(); }
+});
+
+function irParaLinha(n){
+  const linhas = codigo.value.split("\n");
+  let pos = 0;
+  for (let i = 0; i < n - 1 && i < linhas.length; i++) pos += linhas[i].length + 1;
+  codigo.focus();
+  codigo.setSelectionRange(pos, pos + (linhas[n - 1] || "").length);
+  // leva a linha para perto do meio da caixa
+  const alturaLinha = codigo.scrollHeight / Math.max(linhas.length, 1);
+  codigo.scrollTop = Math.max(0, (n - 1) * alturaLinha - codigo.clientHeight / 2);
+  gutter.scrollTop = codigo.scrollTop;
+}
+
+function mostrarAviso(tipo, html){
+  aviso.className = "aviso on " + tipo;
+  aviso.innerHTML = html;
+}
+function limparAviso(){ aviso.className = "aviso"; aviso.innerHTML = ""; }
+
+/* ============================================================
+   RODAR
+   ============================================================ */
+function rodar(){
+  const fonte = codigo.value;
+  sessionStorage.setItem("oficina_codigo", fonte);
+  let novo;
+  try {
+    novo = compilar(fonte);
+  } catch (erro) {
+    const e = explicarErro(erro, fonte);
+    const link = e.linha ? ' <span class="linha-link" data-linha="' + e.linha + '">ir para a linha ' + e.linha + "</span>" : "";
+    mostrarAviso("erro", "<b>Não rodou.</b> " + e.texto + link
+      + (e.cru ? '<div style="margin-top:4px;font-size:11.5px;opacity:.7">' + e.cru + "</div>" : ""));
+    const lk = aviso.querySelector(".linha-link");
+    if (lk) lk.onclick = function(){ irParaLinha(Number(lk.dataset.linha)); };
+    return false;
+  }
+  agente = novo;
+  limparAviso();
+  // sem empilhar avisos: quem clica em Rodar três vezes seguidas vê um só
+  const ultimo = chat.lastElementChild;
+  if (chat.children.length && !(ultimo && ultimo.classList.contains("divisor"))) {
+    divisor("⟳ código recarregado");
+  }
+  renderChips();
+  return true;
+}
+
+document.getElementById("btn-rodar").onclick = rodar;
+
+document.getElementById("btn-reset").onclick = function(){
+  if (!confirm("Isso apaga o que você escreveu e volta ao código original. Continuar?")) return;
+  codigo.value = CODIGO_INICIAL;
+  sessionStorage.removeItem("oficina_codigo");
+  renderGutter();
+  painelTestes.className = "testes";
+  chat.innerHTML = "";
+  rodar();
+  boot();
+};
+
+/* ============================================================
+   CONFERIR (os testes)
+   ============================================================ */
+document.getElementById("btn-conferir").onclick = function(){
+  if (!rodar()) return;
+  const resultados = TESTES.map(function(t){
+    const pergunta = t.ajusta ? t.ajusta(agente) : t.pergunta;
+    try {
+      const resposta = agente.responder(pergunta) || {};
+      const tudo = String(resposta.texto || "") + String(resposta.tabela || "");
+      const porque = t.roda(agente, { resposta: resposta, tudo: tudo });
+      return { nome: t.nome, pergunta: pergunta, passou: !porque, porque: porque };
+    } catch (erro) {
+      return { nome: t.nome, pergunta: pergunta, passou: false,
+               porque: "o código deu erro ao responder: " + (erro && erro.message || erro) };
+    }
+  });
+
+  const passaram = resultados.filter(function(r){ return r.passou; }).length;
+  const total = resultados.length;
+  painelTestes.className = "testes on";
+  painelTestes.innerHTML =
+    '<div class="cab">'
+    + '<strong style="color:' + (passaram === total ? "var(--ok)" : "var(--erro)") + '">'
+    + passaram + " de " + total + (passaram === total ? " passaram ✓" : " passaram") + "</strong>"
+    + '<span style="font-size:12px;color:var(--muted)">testes contra o seu código</span>'
+    + '<button class="fecha" title="fechar">×</button></div>'
+    + resultados.map(function(r){
+        return '<div class="teste ' + (r.passou ? "p" : "f") + '">'
+          + '<span class="mk">' + (r.passou ? "✓" : "✗") + "</span><div>"
+          + "<div>" + r.nome + "</div>"
+          + '<div class="q">perguntei: “' + r.pergunta + "”</div>"
+          + (r.porque ? '<div class="porque">' + r.porque + "</div>" : "")
+          + "</div></div>";
+      }).join("")
+    + '<div class="pe">Cada um destes existe porque a regra correspondente já quebrou de '
+    + "verdade. Eles conferem o <b>formato</b>, não o valor: a nota pode mudar, o jeito de "
+    + "ler a nota não.</div>";
+  painelTestes.querySelector(".fecha").onclick = function(){ painelTestes.className = "testes"; };
+};
+
+/* ============================================================
+   CHAT
+   ============================================================ */
+function hora(){ const d = new Date(); return doisDig(d.getHours()) + ":" + doisDig(d.getMinutes()); }
+function rolar(){ chat.scrollTop = chat.scrollHeight; }
+function escapar(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+
+function msg(quem, html, falhou){
+  const row = document.createElement("div");
+  row.className = "row " + quem;
+  row.innerHTML = (quem === "bot" ? '<div class="mini">🎓</div>' : "")
+    + '<div class="col-msg"><div class="bubble' + (falhou ? " falhou" : "") + '">' + html
+    + '</div><div class="hora">' + hora() + "</div></div>";
+  chat.appendChild(row); rolar(); return row;
+}
+function divisor(texto){
+  const d = document.createElement("div");
+  d.className = "divisor"; d.textContent = texto;
+  chat.appendChild(d); rolar();
+}
+function digitando(){
+  const row = document.createElement("div");
+  row.className = "row bot";
+  row.innerHTML = '<div class="mini">🎓</div><div class="bubble" style="padding:0">'
+    + '<div class="digitando"><i></i><i></i><i></i></div></div>';
+  chat.appendChild(row); rolar(); return row;
+}
+
+async function perguntar(texto){
+  texto = String(texto).trim();
+  if (!texto) return;
+  msg("me", escapar(texto));
+  entrada.value = ""; crescer();
+  const t = digitando();
+  await new Promise(function(r){ setTimeout(r, 420); });
+  t.remove();
+
+  if (!agente) { msg("bot", "Clique em <b>▶ Rodar</b> primeiro.", true); return; }
+
+  let resposta;
+  try {
+    resposta = agente.responder(texto) || {};
+  } catch (erro) {
+    msg("bot", "<b>O código deu erro ao responder.</b><br>" + escapar(erro && erro.message || erro)
+      + "<br><span style='font-size:12px'>Isso é um bug — e agora você sabe exatamente onde.</span>", true);
+    return;
+  }
+  const row = msg("bot", resposta.texto || "(ele devolveu uma resposta vazia)");
+  if (resposta.tabela) {
+    const t2 = document.createElement("div");
+    t2.className = "tab"; t2.innerHTML = resposta.tabela;
+    row.querySelector(".col-msg").appendChild(t2); rolar();
+  }
+}
+
+function renderChips(){
+  const primeira = agente && agente.ESCOLA && agente.ESCOLA.notas
+    ? Object.keys(agente.ESCOLA.notas)[0] : "matemática";
+  const opcoes = [
+    "Minha nota de " + primeira,
+    "Como está meu boletim?",
+    "Quais trabalhos estão pendentes?",
+    "Avisos da escola",
+    "Quem ganhou a copa de 2022?",
+  ];
+  chips.innerHTML = opcoes.map(function(o){
+    return '<button class="chip">' + o + "</button>";
+  }).join("");
+  chips.querySelectorAll(".chip").forEach(function(b){
+    b.onclick = function(){ perguntar(b.textContent); };
+  });
+}
+
+function crescer(){
+  entrada.style.height = "auto";
+  entrada.style.height = Math.min(entrada.scrollHeight, 90) + "px";
+}
+entrada.addEventListener("input", crescer);
+entrada.addEventListener("keydown", function(e){
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); perguntar(entrada.value); }
+});
+document.getElementById("btn-enviar").onclick = function(){ perguntar(entrada.value); };
+
+/* ============================================================
+   PASSOS
+   ============================================================ */
+let passoAtual = 0;
+function renderPassos(){
+  document.getElementById("abas").innerHTML = PASSOS.map(function(p, i){
+    return '<button class="aba' + (i === passoAtual ? " on" : "") + '" data-i="' + i + '">'
+      + '<span class="n">' + (i + 1) + "</span>" + p.aba + "</button>";
+  }).join("");
+  document.querySelectorAll(".aba").forEach(function(b){
+    b.onclick = function(){ passoAtual = Number(b.dataset.i); renderPassos(); };
+  });
+  const p = PASSOS[passoAtual];
+  const corpo = document.getElementById("passo-corpo");
+  corpo.innerHTML = "<h2>" + p.titulo + "</h2>" + p.corpo;
+  corpo.scrollTop = 0;
+  corpo.querySelectorAll(".trecho").forEach(function(t){
+    const texto = t.textContent;
+    const b = document.createElement("button");
+    b.textContent = "copiar";
+    b.onclick = function(){
+      navigator.clipboard.writeText(texto).then(function(){
+        b.textContent = "copiado ✓";
+        setTimeout(function(){ b.textContent = "copiar"; }, 1400);
+      }, function(){ b.textContent = "selecione e copie"; });
+    };
+    t.appendChild(b);
+  });
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+function boot(){
+  const nome = (agente && agente.ESCOLA && agente.ESCOLA.aluno || "você").split(" ")[0];
+  msg("bot", "Oi, " + escapar(nome) + "! 👋 Sou o assistente do <b>Colégio Exemplo</b>."
+    + "<br>Eu sei exatamente o que está escrito no código ao lado — e nada além disso."
+    + "<br>Mexa lá, clique em <b>▶ Rodar</b>, e veja o que eu passo a saber.");
+}
+
+document.getElementById("hoje").textContent = "hoje é " + dataBr(hoje());
+codigo.value = sessionStorage.getItem("oficina_codigo") || CODIGO_INICIAL;
+renderGutter();
+renderPassos();
+rodar();
+boot();
+</script>
+</body>
+</html>

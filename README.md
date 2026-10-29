@@ -35,10 +35,19 @@ editar arquivo, nada de baixar o código.
 Passo a passo, como deixar instalado (`sabia`, `sabia doctor`) e o que fazer
 quando algo dá errado, inclusive no Windows: [`docs/instalar.md`](docs/instalar.md).
 
-Para **oficina em laboratório** (muitas máquinas de Windows, sem administrador
-e sem contar com a internet da escola), existe um pacote portátil: uma pasta
-com o Node e o navegador dentro, que roda no duplo clique.
-Ver [`docs/oficina.md`](docs/oficina.md).
+Para **oficina em laboratório** há dois caminhos:
+
+- **Uma hora, mão na massa:** [`oficina/index.html`](oficina/index.html) é um
+  arquivo só, de 38 KB, sem instalar nada, sem internet, sem conta e sem chave
+  de IA. O aluno edita os dados e as regras de um assistente de brinquedo, acha
+  um erro de data que está lá de propósito, conserta, e quebra o próprio código
+  para ver os testes acusarem. O roteiro minuto a minuto da hora inteira
+  (prática → Sabiá ao vivo → fecho) está em
+  [`docs/roteiro-oficina.md`](docs/roteiro-oficina.md).
+- **O Sabiá rodando em muitas máquinas de Windows**, sem administrador e sem
+  contar com a internet da escola: existe um pacote portátil, uma pasta com o
+  Node e o navegador dentro, que roda no duplo clique.
+  Ver [`docs/oficina.md`](docs/oficina.md).
 
 ## Rodar do código-fonte
 
@@ -161,7 +170,7 @@ prazo, ele desiste e avisa. Nada é contornado.
 npm run dev        # o agente, reiniciando a cada mudança (porta 8123)
 npm run dev:web    # a tela no Vite, com recarga instantânea (porta 5173)
 npm run check      # tipos do servidor e da tela
-npm test           # 148 testes, sem rede e sem navegador, ~2 s
+npm test           # ~180 testes, sem rede e sem navegador, ~3 s
 npm run test:real  # as 5 capacidades contra os sistemas reais
 npm run test:mascara  # a máscara do telão, num Chromium com páginas fictícias
 npm run build      # o pacote: tela + dist/sabia.mjs (o que o npx instala)
@@ -182,6 +191,9 @@ puras e dados fictícios no formato real das telas:
   a chamada ao modelo na hora (e mata a CLI)
 - o núcleo com um agente de brinquedo, ponta a ponta pelo servidor: apagar a
   conversa que está respondendo, fechar a aba no meio do 2FA
+- os quatro passos da oficina aplicados no código que o aluno recebe (se alguém
+  reescrever esse código, o passo que mandava procurar uma linha some antes da
+  aula, e não no meio dela)
 
 `npm run test:real` confere **invariantes**, não valores (nota muda, formato não).
 
@@ -248,7 +260,8 @@ src/
 web/              a tela (React + shadcn, no padrão do blocks.so)
 ui/               a tela antiga, em /classico, até a nova ser aprovada
 test/             unidade (sem rede) e integração (sistemas reais)
-docs/             slides, roteiro da apresentação, arquitetura, mascote
+docs/             slides, roteiros da apresentação e da oficina, arquitetura
+oficina/          a oficina de 1 hora: um arquivo, o aluno escreve o agente
 scripts/          empacotar e conferir o pacote, PDF dos slides, mascote, benchmark
 offline/          primeira versão, simulação com dados fictícios
 ```
