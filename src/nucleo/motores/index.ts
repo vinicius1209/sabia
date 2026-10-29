@@ -2,7 +2,7 @@ import type { OpcaoDeMotor } from "../protocolo.ts";
 import { cliInstalada, motorPorAssinatura } from "./cli.ts";
 import { motorGemini } from "./gemini.ts";
 import { motorLocal } from "./local.ts";
-import { motorOpenAI } from "./openai.ts";
+import { DEEPSEEK, motorOpenAI } from "./openai.ts";
 import type { DepsDoMotor, Motor } from "./tipos.ts";
 
 export type { Motor, DepsDoMotor } from "./tipos.ts";
@@ -19,6 +19,12 @@ export type { Motor, DepsDoMotor } from "./tipos.ts";
  *   Codex (assinatura)         7/7   ~9 s por chamada
  *   agy Gemini 3.8 Flash low   7/7   ~8 a 14 s por chamada (5 s só para subir)
  *   agy Gemini 3.8 Flash medium  estourou 2 min e devolveu fora do formato
+ * DeepSeek medida depois, nos quatro conjuntos (out/2026), contra o mini:
+ *   DeepSeek chat   30/30   ~2,5 s por chamada  (10/10 em interpretação, 6/6 em continuação)
+ *   gpt-4.1-mini    26/30   ~1,6 s por chamada  (8/10 e 4/6 nos mesmos)
+ * Os dois oscilam uma questão entre rodadas; a DeepSeek ficou à frente em
+ * todas. Ela não tem schema estrito (só json_object) e errava o formato em
+ * ~2% das chamadas; a segunda tentativa do motor (openai.ts) zerou isso.
  * O Claude Sonnet variou entre 5 e 6 de 7 em rodadas diferentes: os erros são
  * consultar uma fonte a mais, não responder errado.
  * ================================================================== */
@@ -71,6 +77,20 @@ export const CATALOGO: Catalogo[] = [
     ],
   },
   {
+    id: "deepseek",
+    nome: "DeepSeek",
+    descricao: "Chave de API barata, para muitas máquinas ao mesmo tempo (a oficina). Fala o protocolo da OpenAI.",
+    requer: "chave",
+    chave: "DEEPSEEK_API_KEY",
+    modelos: [
+      {
+        id: "deepseek-chat",
+        nome: "DeepSeek Chat",
+        descricao: "Acertou 30 de 30 nos testes, à frente do gpt-4.1-mini. Uns 2,5 s por chamada.",
+      },
+    ],
+  },
+  {
     id: "gemini",
     nome: "Gemini",
     descricao: "Alternativa do Google. Gasta com chave de API.",
@@ -90,6 +110,7 @@ export const CATALOGO: Catalogo[] = [
 /** A variável que guarda o modelo escolhido de cada motor. */
 export const VAR_DO_MODELO: Record<string, string> = {
   openai: "OPENAI_MODEL",
+  deepseek: "DEEPSEEK_MODEL",
   claude: "CLAUDE_MODEL",
   codex: "CODEX_MODEL",
   agy: "AGY_MODEL",
@@ -149,6 +170,8 @@ export function criarMotor(deps: DepsDoMotor, escolha: { id: string; modelo: str
       return motorPorAssinatura(deps, "codex", escolha.modelo);
     case "agy":
       return motorPorAssinatura(deps, "agy", escolha.modelo || "gemini-3.8-flash-low");
+    case "deepseek":
+      return motorOpenAI(deps, escolha.modelo || "deepseek-chat", DEEPSEEK);
     default:
       return motorOpenAI(deps, escolha.modelo || "gpt-6-luna");
   }

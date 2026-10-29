@@ -74,7 +74,8 @@ const CAL = {
   ),
 };
 const DIA = {
-  data: "28/09/2026",
+  // a segunda que PASSOU (hoje e sabado 26/09): e dela que o caso fala
+  data: "21/09/2026",
   disciplinas: [
     { disciplina: "Biologia", conteudo: "Células", tarefas: "Sem tarefa.", temTarefa: false },
     { disciplina: "Matemática", conteudo: "Funções", tarefas: "Lista 7", temTarefa: true },
@@ -113,9 +114,11 @@ const DIFICEIS: Caso[] = [
     precisa: ["CE"], proibido: [/7,3|8,5|9,1|5,8/] },
   { p: "Quando foi a prova de segunda chamada?", tools: ["ler_calendario"],
     dados: { ler_calendario: CAL }, precisa: ["23"], proibido: [/simulado/i] },
-  // precisa escolher a DATA certa pela tabela de dias do cabecalho
+  // precisa escolher a DATA certa pela tabela de dias do cabecalho. "passaram"
+  // e preterito: a segunda de TRAS (21/09), nao a da frente (28/09). A tabela
+  // oferece as duas, entao so a conjugacao desempata.
   { p: "Que tarefa passaram na segunda-feira?", tools: ["ler_diario"],
-    args: { data: "28/09/2026" }, dados: { ler_diario: DIA }, precisa: ["Lista 7"],
+    args: { data: "21/09/2026" }, dados: { ler_diario: DIA }, precisa: ["Lista 7"],
     proibido: [/Biologia: Sem tarefa/] },
 ];
 
