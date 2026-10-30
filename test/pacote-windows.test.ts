@@ -82,9 +82,31 @@ test("o Limpar.bat apaga a pasta dados INTEIRA, e não só o config.json", () =>
 
 test("o Limpar.bat pergunta antes, e só o S apaga", () => {
   assert.match(limpar, /set \/p "RESPOSTA=/);
-  assert.match(limpar, /if \/i not "%RESPOSTA%"=="S" \(/);
+  assert.match(limpar, /if \/i "%RESPOSTA%"=="S" goto apagar/);
   // Enter vazio não apaga: RESPOSTA é zerada antes do set /p
   assert.ok(limpar.indexOf('set "RESPOSTA="') < limpar.indexOf('set /p "RESPOSTA='));
+});
+
+test("a pergunta não mora dentro de bloco de parênteses", () => {
+  // num bloco, %RESPOSTA% é trocado pelo valor ANTIGO (vazio) quando o cmd lê
+  // o bloco, antes do set /p rodar: a resposta da pessoa nunca contaria
+  const depoisDoSetP = limpar.slice(limpar.indexOf('set /p "RESPOSTA='));
+  const ate = depoisDoSetP.slice(0, depoisDoSetP.indexOf("goto apagar"));
+  assert.doesNotMatch(ate, /\(/);
+});
+
+test("o /S pula a pergunta (script, e o teste do empacotador)", () => {
+  assert.match(limpar, /if \/i "%~1"=="\/S" goto apagar/);
+  assert.match(limpar, /^:apagar\r$/m);
+});
+
+test("o Limpar.bat não troca a página de código", () => {
+  // chcp 65001 estraga o `set /p` quando a entrada não é o teclado -- foi o
+  // que fez o teste do CI ver "cancelado" em vez da resposta. Aqui não se
+  // imprime acento nenhum, então não há o que a página de código resolver.
+  // o comando, não a palavra: o próprio .bat tem um `rem` explicando a ausência
+  assert.doesNotMatch(limpar, /^chcp/m);
+  assert.match(comIA, /^chcp 65001/m); // lá ela é necessária: o Node imprime acento
 });
 
 test("o Limpar.bat avisa quando o Sabiá está aberto segurando o perfil", () => {

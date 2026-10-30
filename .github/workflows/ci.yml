@@ -57,6 +57,10 @@ jobs:
       # telão (no Linux do CI faltam bibliotecas do sistema para abrir o Chromium)
       - if: runner.os != 'Linux'
         run: npm run test:mascara
+      # e a tela da oficina: o realce do código é um <pre> pintado atrás de um
+      # <textarea>, e um pixel de diferença põe o cursor fora da letra
+      - if: runner.os != 'Linux'
+        run: npm run test:oficina
 
   # O Sabiá portátil para a oficina: uma pasta com o Node, o Chromium e o
   # agente dentro, que roda sem instalar nada e sem administrador. Só pode ser

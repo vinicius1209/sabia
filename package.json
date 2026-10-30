@@ -38,6 +38,7 @@
     "test": "node --test test/unidade.test.ts test/doisfatores.test.ts test/agente.test.ts test/nucleo.test.ts test/pacote-windows.test.ts test/oficina.test.ts",
     "test:real": "node --test test/integracao.test.ts",
     "test:mascara": "node --test test/mascara.test.ts",
+    "test:oficina": "node --test test/oficina-ui.test.ts",
     "bench": "node scripts/bench.ts",
     "pdf": "node scripts/pdf.mjs",
     "build": "npm run build:web && node scripts/empacotar.mjs",

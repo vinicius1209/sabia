@@ -16,12 +16,47 @@
   O roteiro da hora está em docs/roteiro-oficina.md
 -->
 <style>
+  /*
+    Os mesmos nomes de token do shadcn/ui que a tela do Sabiá usa
+    (web/src/index.css): background/foreground, muted, border, ring, radius.
+    Aqui eles são CSS puro, porque esta página é UM arquivo que abre de um
+    pendrive, sem build e sem rede -- shadcn de verdade é React + Tailwind
+    + build, e não cabe. O que dá para trazer é o sistema: a mesma escala de
+    raio, o anel de foco, a borda de 1px, a sombra discreta.
+
+    O verde é de propósito: o assistente do aluno não é o Sabiá. Para deixar
+    os dois da mesma cor, basta trocar --primary aqui.
+  */
   :root{
-    --brand:#0b7d5b; --brand-2:#0ea272;
-    --bg:#eef1f0; --panel:#ffffff; --ink:#0f1f1a; --muted:#6a7b74;
-    --line:#dde3e1; --code-bg:#0f201b; --code-ink:#e8f2ee;
-    --erro:#c0392b; --ok:#0b7d5b; --atencao:#c98a00;
+    --primary:#0b7d5b; --primary-2:#0ea272; --primary-foreground:#ffffff;
+    --background:#eef1f0; --card:#ffffff; --foreground:#0f1f1a;
+    --muted:#f3f6f5; --muted-foreground:#6a7b74;
+    --border:#dde3e1; --input:#e4eae8; --ring:#0b7d5b;
+    --accent:#e6f6ef; --accent-foreground:#0a5f45;
+    --code-bg:#0f201b; --code-ink:#e8f2ee;
+    --destructive:#c0392b; --ok:#0b7d5b; --atencao:#c98a00;
+
+    --radius:.625rem;
+    --radius-sm:calc(var(--radius) - 4px);
+    --radius-md:calc(var(--radius) - 2px);
+    --radius-lg:var(--radius);
+    --radius-xl:calc(var(--radius) + 4px);
+
+    --shadow-xs:0 1px 2px rgba(15,31,26,.06);
+    --shadow-md:0 4px 12px rgba(15,31,26,.09),0 1px 3px rgba(15,31,26,.06);
+    --shadow-lg:0 10px 30px rgba(15,31,26,.14),0 3px 8px rgba(15,31,26,.07);
+
+    /* realce do código (ver realcar()) */
+    --c-coment:#5f7d72; --c-texto:#9fe6b8; --c-numero:#f3b96b;
+    --c-chave:#7fd1e8; --c-prop:#ecd9a4; --c-func:#b4b9fb; --c-regex:#f1a7c4;
+
+    /* nomes antigos, para o CSS que ainda não migrou */
+    --brand:var(--primary); --brand-2:var(--primary-2);
+    --bg:var(--background); --panel:var(--card); --ink:var(--foreground);
+    --line:var(--border); --erro:var(--destructive);
   }
+  /* o --muted virou cor de fundo (shadcn); quem quer o texto apagado usa este */
+  .app :where(.muted){color:var(--muted-foreground)}
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
   body{
@@ -46,7 +81,7 @@
     display:flex;gap:14px;padding:10px 16px;align-items:flex-start}
   .abas{display:flex;flex-direction:column;gap:5px;flex-shrink:0}
   .aba{display:flex;align-items:center;gap:7px;background:#f3f6f5;border:1px solid var(--line);
-    border-radius:9px;padding:5px 9px;font-size:12px;font-weight:600;color:var(--muted);
+    border-radius:9px;padding:5px 9px;font-size:12px;font-weight:600;color:var(--muted-foreground);
     cursor:pointer;white-space:nowrap;text-align:left;font-family:inherit}
   .aba .n{width:17px;height:17px;border-radius:50%;background:#dde3e1;color:#fff;
     display:grid;place-items:center;font-size:11px;flex-shrink:0}
@@ -76,21 +111,70 @@
   .barra{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--panel);
     border-bottom:1px solid var(--line);flex-shrink:0}
   .barra .rotulo{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
-    color:var(--muted);margin-right:auto}
-  .btn{border:none;border-radius:8px;padding:7px 13px;font-size:13px;font-weight:700;
-    cursor:pointer;font-family:inherit}
-  .btn-rodar{background:var(--brand);color:#fff}
-  .btn-conferir{background:#e6f6ef;color:var(--brand);border:1px solid #bfe3d4}
-  .btn-reset{background:#f3f6f5;color:var(--muted);border:1px solid var(--line)}
-  .btn:hover{filter:brightness(.96)}
+    color:var(--muted-foreground);margin-right:auto}
+  /* botões no desenho do shadcn: 1px de borda, raio médio, sombra mínima,
+     peso 500 (e não 700), e anel de foco visível para quem anda de teclado */
+  .btn{border:1px solid transparent;border-radius:var(--radius-md);padding:0 12px;height:32px;
+    font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;
+    align-items:center;gap:6px;white-space:nowrap;box-shadow:var(--shadow-xs);
+    transition:background-color .15s,border-color .15s,box-shadow .15s}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 45%,transparent)}
+  .btn-rodar{background:var(--primary);color:var(--primary-foreground);font-weight:600}
+  .btn-rodar:hover{background:var(--primary-2)}
+  .btn-conferir{background:var(--accent);color:var(--accent-foreground);border-color:#bfe3d4}
+  .btn-conferir:hover{background:#d9f0e4}
+  .btn-reset{background:var(--card);color:var(--muted-foreground);border-color:var(--border)}
+  .btn-reset:hover{background:var(--muted);color:var(--foreground)}
 
+  /* ---------- editor com realce ----------
+     O <textarea> continua sendo quem edita (seleção, desfazer, ir para a
+     linha). O <pre> atrás dele só pinta: mesma fonte, mesmo tamanho, mesma
+     entrelinha, mesmo padding -- qualquer diferença desalinha o texto do
+     cursor. Se o realce falhar, realcar() cai para texto puro e a caixa
+     continua funcionando (ver o catch lá embaixo). */
   .editor{flex:1;display:flex;min-height:0;background:var(--code-bg);position:relative}
   .gutter{padding:12px 8px 12px 12px;color:#4e6a60;background:var(--code-bg);text-align:right;
     font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:13px;line-height:1.55;
     overflow:hidden;white-space:pre;user-select:none;flex-shrink:0}
-  #codigo{flex:1;border:none;outline:none;resize:none;background:var(--code-bg);color:var(--code-ink);
-    padding:12px 14px 12px 4px;font-family:ui-monospace,"SF Mono",Consolas,monospace;
-    font-size:13px;line-height:1.55;white-space:pre;overflow:auto;tab-size:2}
+  .caixa{position:relative;flex:1;min-width:0}
+  #realce,#codigo{
+    position:absolute;inset:0;margin:0;border:none;
+    padding:12px 14px 12px 4px;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace;
+    font-size:13px;line-height:1.55;white-space:pre;tab-size:2;
+  }
+  #realce{pointer-events:none;overflow:hidden;color:var(--code-ink)}
+  #codigo{background:transparent;color:transparent;caret-color:#7ee3b0;
+    resize:none;outline:none;overflow:auto}
+  #codigo::selection{background:rgba(126,227,176,.28);color:transparent}
+  .t-coment{color:var(--c-coment);font-style:italic}
+  .t-texto{color:var(--c-texto)}
+  .t-numero{color:var(--c-numero)}
+  .t-chave{color:var(--c-chave)}
+  .t-prop{color:var(--c-prop)}
+  .t-func{color:var(--c-func)}
+  .t-regex{color:var(--c-regex)}
+
+  /* ---------- toast ---------- */
+  .toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:60;
+    display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+  .toast{display:flex;align-items:center;gap:9px;background:var(--card);color:var(--foreground);
+    border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 15px;
+    font-size:13.5px;font-weight:500;box-shadow:var(--shadow-lg);
+    animation:toast-entra .22s cubic-bezier(.16,1,.3,1)}
+  .toast .ico{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;
+    font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+  .toast.ok .ico{background:var(--ok)}
+  .toast.erro .ico{background:var(--destructive)}
+  .toast.info .ico{background:var(--muted-foreground)}
+  .toast .atalho{color:var(--muted-foreground);font-size:11.5px;font-weight:500;
+    border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin-left:3px}
+  .toast.saindo{animation:toast-sai .17s ease forwards}
+  @keyframes toast-entra{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+  @keyframes toast-sai{to{opacity:0;transform:translateY(6px) scale(.97)}}
+  @media (prefers-reduced-motion:reduce){
+    .toast,.toast.saindo{animation:none}
+  }
 
   .aviso{flex-shrink:0;padding:9px 13px;font-size:13px;line-height:1.45;display:none;
     border-top:1px solid var(--line)}
@@ -108,15 +192,15 @@
   .testes .cab{display:flex;align-items:center;gap:9px;padding:9px 13px;
     border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
   .testes .cab strong{font-size:13px}
-  .testes .cab .fecha{margin-left:auto;background:none;border:none;color:var(--muted);
+  .testes .cab .fecha{margin-left:auto;background:none;border:none;color:var(--muted-foreground);
     font-size:17px;cursor:pointer;line-height:1}
   .teste{display:flex;gap:9px;padding:8px 13px;border-bottom:1px dashed var(--line);font-size:13px}
   .teste:last-child{border-bottom:none}
   .teste .mk{flex-shrink:0;font-weight:700;width:16px}
   .teste.p .mk{color:var(--ok)} .teste.f .mk{color:var(--erro)}
-  .teste .q{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted)}
+  .teste .q{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted-foreground)}
   .teste .porque{color:var(--erro);margin-top:2px;line-height:1.4}
-  .testes .pe{padding:8px 13px;font-size:12px;color:var(--muted);line-height:1.45}
+  .testes .pe{padding:8px 13px;font-size:12px;color:var(--muted-foreground);line-height:1.45}
 
   /* ---------- chat ---------- */
   .chat{flex:1;overflow-y:auto;padding:14px 13px 6px;display:flex;flex-direction:column;gap:9px}
@@ -131,10 +215,8 @@
   .me .bubble{background:var(--brand);color:#fff;border-bottom-right-radius:5px}
   .bot .bubble{background:#fff;border-bottom-left-radius:5px}
   .bot .bubble.falhou{background:#fdeeec;color:#8e2a1e}
-  .hora{font-size:10px;color:var(--muted);margin:2px 6px 0}
+  .hora{font-size:10px;color:var(--muted-foreground);margin:2px 6px 0}
   .me .hora{text-align:right}
-  .divisor{align-self:center;font-size:11px;color:var(--muted);background:#e2e7e5;
-    padding:3px 11px;border-radius:20px;margin:3px 0}
   .tab{background:#fff;border:1px solid var(--line);border-radius:13px;padding:11px;
     margin-top:6px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
   .tab .k{font-size:10.5px;font-weight:700;color:var(--brand);text-transform:uppercase;
@@ -202,7 +284,11 @@
       </div>
       <div class="editor">
         <div class="gutter" id="gutter"></div>
-        <textarea id="codigo" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        <div class="caixa">
+          <pre id="realce" aria-hidden="true"></pre>
+          <textarea id="codigo" spellcheck="false" autocomplete="off" autocapitalize="off"
+                    aria-label="O código do seu assistente"></textarea>
+        </div>
       </div>
       <div class="aviso" id="aviso"></div>
       <div class="testes" id="testes"></div>
@@ -222,6 +308,10 @@
     </div>
   </div>
 </div>
+
+<!-- os avisos de passagem (Rodar, Voltar ao começo). role=status faz o
+     leitor de tela anunciar sem roubar o foco de quem está digitando -->
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
 <!-- ============================================================
      O CÓDIGO INICIAL DO ALUNO
@@ -618,6 +708,8 @@ function abreDe(c){ return c === ")" ? "(" : c === "]" ? "[" : "{"; }
 let agente = null;
 const codigo  = document.getElementById("codigo");
 const gutter  = document.getElementById("gutter");
+const realce  = document.getElementById("realce");
+const toasts  = document.getElementById("toasts");
 const aviso   = document.getElementById("aviso");
 const chat    = document.getElementById("chat");
 const chips   = document.getElementById("chips");
@@ -625,17 +717,157 @@ const entrada = document.getElementById("entrada");
 const painelTestes = document.getElementById("testes");
 
 /* ============================================================
+   TOAST — o aviso de passagem
+
+   O "código recarregado" era uma tarja no meio da conversa: aparecia longe
+   de onde a pessoa clicou, empurrava as mensagens para cima e ficava lá
+   para sempre. Vira um toast: perto do centro, some sozinho, e não mexe no
+   que já está na tela.
+   ============================================================ */
+const ICONE = { ok: "✓", erro: "!", info: "i" };
+let toastAtual = null;
+
+function toast(texto, tipo, atalho){
+  const classe = tipo || "ok";
+  // clicar em Rodar três vezes não empilha três toasts: o mesmo aviso
+  // reaparece e o relógio recomeça
+  if (toastAtual && toastAtual.texto === texto && toastAtual.el.isConnected) {
+    clearTimeout(toastAtual.tempo);
+    toastAtual.el.classList.remove("saindo");
+    // reinicia a animação de entrada, senão ele fica parado e parece travado
+    toastAtual.el.style.animation = "none";
+    void toastAtual.el.offsetWidth;
+    toastAtual.el.style.animation = "";
+    toastAtual.tempo = setTimeout(function(){ sairToast(toastAtual.el); }, 2600);
+    return;
+  }
+  if (toastAtual && toastAtual.el.isConnected) sairToast(toastAtual.el);
+
+  const el = document.createElement("div");
+  el.className = "toast " + classe;
+  const ico = document.createElement("span");
+  ico.className = "ico";
+  ico.textContent = ICONE[classe] || "i";
+  el.appendChild(ico);
+  el.appendChild(document.createTextNode(texto));
+  if (atalho) {
+    const k = document.createElement("span");
+    k.className = "atalho";
+    k.textContent = atalho;
+    el.appendChild(k);
+  }
+  toasts.appendChild(el);
+  const tempo = setTimeout(function(){ sairToast(el); }, 2600);
+  toastAtual = { texto: texto, el: el, tempo: tempo };
+}
+
+function sairToast(el){
+  if (!el || !el.isConnected) return;
+  el.classList.add("saindo");
+  setTimeout(function(){ if (el.isConnected) el.remove(); }, 200);
+}
+
+/* ============================================================
    EDITOR
    ============================================================ */
-function renderGutter(){
-  const linhas = codigo.value.split("\n").length;
+
+/* As palavras que ganham cor de palavra-chave. Só as que aparecem no código
+   desta oficina -- lista curta é lista que não erra. */
+const PALAVRAS = ("const let var function return if else for while do of in new " +
+  "typeof true false null undefined this break continue").split(" ");
+
+function escapar(s){
+  return s.replace(/[&<>]/g, function(c){
+    return c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;";
+  });
+}
+function pintar(classe, texto){
+  return '<span class="' + classe + '">' + escapar(texto) + "</span>";
+}
+
+/*
+ * Um realçador pequeno para o JavaScript desta página. Não é um parser: é
+ * uma passada da esquerda para a direita, e a ORDEM das alternativas é o
+ * que o faz acertar -- comentário e texto vêm primeiro, senão um // dentro
+ * de aspas viraria comentário.
+ *
+ * A barra é o caso chato: `/nota|media/` é uma expressão regular (o código
+ * do aluno tem várias), mas `a / b` é divisão. Decide pelo que veio antes:
+ * depois de `(`, `=`, `,` e companhia só cabe expressão regular.
+ */
+const ANTES_DE_REGEX = "(,=:[!&|?{};+-*%<>~^\n";
+
+function realcar(fonte){
+  const re = new RegExp(
+    "(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)" +                        // 1 comentário
+    "|(\"(?:\\\\.|[^\"\\\\\\n])*\"|'(?:\\\\.|[^'\\\\\\n])*'|`(?:\\\\.|[^`\\\\])*`)" + // 2 texto
+    "|(\\/(?:\\\\.|\\[(?:\\\\.|[^\\]\\\\\\n])*\\]|[^\\/\\\\\\n])+\\/[gimsuy]*)" +     // 3 regex
+    "|(\\b\\d+(?:\\.\\d+)?\\b)" +                                      // 4 número
+    "|([A-Za-z_$][\\w$]*)",                                            // 5 nome
+    "g"
+  );
+  let saida = "", fim = 0, m;
+  while ((m = re.exec(fonte)) !== null) {
+    if (m[3]) {
+      // é mesmo expressão regular, ou é uma divisão? Olha o que veio antes.
+      let i = m.index - 1;
+      while (i >= 0 && (fonte[i] === " " || fonte[i] === "\t")) i--;
+      const anterior = i < 0 ? "\n" : fonte[i];
+      if (ANTES_DE_REGEX.indexOf(anterior) === -1) {
+        saida += escapar(fonte.slice(fim, m.index + 1));
+        fim = re.lastIndex = m.index + 1;   // engole só a barra e segue
+        continue;
+      }
+    }
+    saida += escapar(fonte.slice(fim, m.index));
+    fim = re.lastIndex;
+    if (m[1])      saida += pintar("t-coment", m[1]);
+    else if (m[2]) saida += pintar("t-texto", m[2]);
+    else if (m[3]) saida += pintar("t-regex", m[3]);
+    else if (m[4]) saida += pintar("t-numero", m[4]);
+    else {
+      const nome = m[5];
+      // anda à frente em vez de fatiar: fatiar o resto do arquivo a cada
+      // nome deixa a digitação arrastada num código de cem linhas
+      let j = re.lastIndex;
+      while (j < fonte.length && (fonte[j] === " " || fonte[j] === "\t")) j++;
+      const seguinte = fonte.charAt(j);
+      if (PALAVRAS.indexOf(nome) !== -1)   saida += pintar("t-chave", nome);
+      else if (seguinte === "(")           saida += pintar("t-func", nome);
+      else if (seguinte === ":")           saida += pintar("t-prop", nome);
+      else                                 saida += escapar(nome);
+    }
+  }
+  saida += escapar(fonte.slice(fim));
+  // a última linha some sem isto: <pre> come a quebra final
+  return saida + "\n";
+}
+
+function renderEditor(){
+  const fonte = codigo.value;
+  const linhas = fonte.split("\n").length;
   let s = "";
   for (let i = 1; i <= linhas; i++) s += i + "\n";
   gutter.textContent = s;
-  gutter.scrollTop = codigo.scrollTop;
+  try {
+    realce.innerHTML = realcar(fonte);
+  } catch (e) {
+    // o realce é enfeite; a oficina não pode parar por causa dele
+    realce.textContent = fonte + "\n";
+  }
+  sincronizarRolagem();
 }
-codigo.addEventListener("input", renderGutter);
-codigo.addEventListener("scroll", function(){ gutter.scrollTop = codigo.scrollTop; });
+/* nome antigo: o resto do arquivo ainda chama assim */
+function renderGutter(){ renderEditor(); }
+
+function sincronizarRolagem(){
+  gutter.scrollTop = codigo.scrollTop;
+  realce.scrollTop = codigo.scrollTop;
+  realce.scrollLeft = codigo.scrollLeft;
+}
+
+codigo.addEventListener("input", renderEditor);
+codigo.addEventListener("scroll", sincronizarRolagem);
 codigo.addEventListener("keydown", function(e){
   if (e.key === "Tab") {                       // Tab indenta, não troca de campo
     e.preventDefault();
@@ -656,7 +888,7 @@ function irParaLinha(n){
   // leva a linha para perto do meio da caixa
   const alturaLinha = codigo.scrollHeight / Math.max(linhas.length, 1);
   codigo.scrollTop = Math.max(0, (n - 1) * alturaLinha - codigo.clientHeight / 2);
-  gutter.scrollTop = codigo.scrollTop;
+  sincronizarRolagem();
 }
 
 function mostrarAviso(tipo, html){
@@ -685,11 +917,7 @@ function rodar(){
   }
   agente = novo;
   limparAviso();
-  // sem empilhar avisos: quem clica em Rodar três vezes seguidas vê um só
-  const ultimo = chat.lastElementChild;
-  if (chat.children.length && !(ultimo && ultimo.classList.contains("divisor"))) {
-    divisor("⟳ código recarregado");
-  }
+  toast("Código recarregado", "ok", "Ctrl+Enter");
   renderChips();
   return true;
 }
@@ -705,6 +933,8 @@ document.getElementById("btn-reset").onclick = function(){
   chat.innerHTML = "";
   rodar();
   boot();
+  // depois do rodar(), senão o "Código recarregado" dele apagaria este
+  toast("Código original de volta", "info");
 };
 
 /* ============================================================
@@ -732,7 +962,7 @@ document.getElementById("btn-conferir").onclick = function(){
     '<div class="cab">'
     + '<strong style="color:' + (passaram === total ? "var(--ok)" : "var(--erro)") + '">'
     + passaram + " de " + total + (passaram === total ? " passaram ✓" : " passaram") + "</strong>"
-    + '<span style="font-size:12px;color:var(--muted)">testes contra o seu código</span>'
+    + '<span style="font-size:12px;color:var(--muted-foreground)">testes contra o seu código</span>'
     + '<button class="fecha" title="fechar">×</button></div>'
     + resultados.map(function(r){
         return '<div class="teste ' + (r.passou ? "p" : "f") + '">'
@@ -762,11 +992,6 @@ function msg(quem, html, falhou){
     + '<div class="col-msg"><div class="bubble' + (falhou ? " falhou" : "") + '">' + html
     + '</div><div class="hora">' + hora() + "</div></div>";
   chat.appendChild(row); rolar(); return row;
-}
-function divisor(texto){
-  const d = document.createElement("div");
-  d.className = "divisor"; d.textContent = texto;
-  chat.appendChild(d); rolar();
 }
 function digitando(){
   const row = document.createElement("div");

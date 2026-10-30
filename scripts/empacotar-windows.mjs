@@ -142,18 +142,27 @@ async function montar() {
            o doctor pare de escrever qualquer coisa.
            `<NUL` não serve: o `set /p` precisa ler o "S". */
     const dados = path.join(destino, "dados");
-    fs.mkdirSync(path.join(dados, "navegador", "Default"), { recursive: true });
-    fs.mkdirSync(path.join(dados, "conversas"), { recursive: true });
-    fs.writeFileSync(path.join(dados, "config.json"), '{"CLASSAPP_PHONE":"da sessao anterior"}\n');
-    fs.writeFileSync(path.join(dados, "navegador", "Default", "Cookies"), "sessao do aluno anterior");
+    const montarDados = () => {
+      fs.mkdirSync(path.join(dados, "navegador", "Default"), { recursive: true });
+      fs.mkdirSync(path.join(dados, "conversas"), { recursive: true });
+      fs.writeFileSync(path.join(dados, "config.json"), '{"CLASSAPP_PHONE":"da sessao anterior"}\n');
+      fs.writeFileSync(path.join(dados, "navegador", "Default", "Cookies"), "sessao do aluno anterior");
+    };
+    const limpar = (args) =>
+      execFileSync("cmd.exe", ["/d", "/c", `Limpar.bat${args} <NUL`], { cwd: destino, encoding: "utf8" });
 
-    const limpeza = execFileSync("cmd.exe", ["/d", "/c", "echo S | Limpar.bat"], {
-      cwd: destino,
-      encoding: "utf8",
-    });
+    // sem confirmar, não apaga. Esta é a metade que protege: um Limpar que
+    // apaga com um Enter distraído derruba a sessão de quem está no meio dela
+    montarDados();
+    const cancelado = limpar("");
+    if (!fs.existsSync(dados)) falhar(`o Limpar.bat apagou sem ninguém confirmar:\n${cancelado}`);
+    if (!cancelado.includes("Nada foi apagado")) falhar(`o Limpar.bat não avisou que parou:\n${cancelado}`);
+
+    // confirmando, apaga tudo
+    const limpeza = limpar(" /S");
     if (fs.existsSync(dados)) falhar(`o Limpar.bat não apagou a pasta dados:\n${limpeza}`);
     if (!limpeza.includes("comeca do zero")) falhar(`o Limpar.bat não confirmou a limpeza:\n${limpeza}`);
-    console.log("  ✓ o Limpar.bat apaga a pasta dados inteira (a troca de alunos funciona)");
+    console.log("  ✓ o Limpar.bat apaga a pasta dados inteira, e só depois de confirmar");
 
     // e o que o doctor por acaso tenha criado também não vai no ZIP
     fs.rmSync(dados, { recursive: true, force: true });
@@ -272,7 +281,12 @@ export function conteudoLimpar() {
     "rem Limpa o Sabia entre as sessoes da oficina: apaga a pasta dados\\, que",
     "rem guarda a conta, a sessao do navegador e as conversas de quem usou.",
     "rem Sem isto o proximo aluno abre o Sabia dentro da conta do anterior.",
-    "chcp 65001 >nul",
+    "rem",
+    "rem Limpar.bat      pergunta antes (o duplo clique)",
+    "rem Limpar.bat /S   apaga direto, sem perguntar (script, e o teste do CI)",
+    "rem",
+    "rem Sem chcp de proposito: aqui nao se imprime acento nenhum, e a pagina",
+    "rem de codigo 65001 estraga o `set /p` quando a entrada nao e o teclado.",
     "setlocal",
     'cd /d "%~dp0"',
     "",
@@ -288,6 +302,8 @@ export function conteudoLimpar() {
     "  exit /b 0",
     ")",
     "",
+    'if /i "%~1"=="/S" goto apagar',
+    "",
     "echo   Vai apagar a pasta dados, que tem:",
     "echo     - a conta do ClassApp que foi preenchida na tela",
     "echo     - a sessao do navegador, com o login de 30 dias",
@@ -296,16 +312,19 @@ export function conteudoLimpar() {
     "echo   A chave da IA NAO se perde: ela mora no Sabia.bat.",
     "echo.",
     "",
+    // sem bloco de parenteses: dentro de um, %RESPOSTA% seria trocado pelo
+    // valor ANTIGO (vazio) na hora de ler o bloco, antes do set /p rodar
     'set "RESPOSTA="',
     'set /p "RESPOSTA=  Apagar agora? Digite S e de Enter: "',
-    'if /i not "%RESPOSTA%"=="S" (',
-    "  echo.",
-    "  echo   Nada foi apagado.",
-    "  echo.",
-    "  pause",
-    "  exit /b 0",
-    ")",
+    'if /i "%RESPOSTA%"=="S" goto apagar',
     "",
+    "echo.",
+    "echo   Nada foi apagado.",
+    "echo.",
+    "pause",
+    "exit /b 0",
+    "",
+    ":apagar",
     'rmdir /s /q "dados"',
     "",
     "rem o Chrome segura arquivos do perfil enquanto esta aberto: se sobrou",
