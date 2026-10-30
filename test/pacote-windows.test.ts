@@ -8,10 +8,11 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { conteudoBat } from "../scripts/empacotar-windows.mjs";
+import { conteudoBat, conteudoLimpar } from "../scripts/empacotar-windows.mjs";
 
 const comIA = conteudoBat("deepseek");
 const semIA = conteudoBat("local");
+const limpar = conteudoLimpar();
 
 test("o .bat guarda os dados DENTRO da pasta, não no perfil do Windows", () => {
   // é o que permite apagar a pasta entre as sessões da oficina e a máquina
@@ -69,15 +70,53 @@ test("o .bat não guarda a conta do ClassApp", () => {
   for (const bat of [comIA, semIA]) assert.doesNotMatch(bat, /CLASSAPP_(PHONE|PASSWORD)=/);
 });
 
+/* ------------------- o Limpar.bat, a troca de alunos ------------------- */
+
+test("o Limpar.bat apaga a pasta dados INTEIRA, e não só o config.json", () => {
+  // apagar só o config.json é pior do que não limpar: o perfil do navegador
+  // sobrevive, o Sabiá entra na sessão velha antes de olhar a conta nova, e
+  // o aluno da sessão seguinte recebe o boletim do anterior
+  assert.match(limpar, /rmdir \/s \/q "dados"/);
+  assert.doesNotMatch(limpar, /config\.json/);
+});
+
+test("o Limpar.bat pergunta antes, e só o S apaga", () => {
+  assert.match(limpar, /set \/p "RESPOSTA=/);
+  assert.match(limpar, /if \/i not "%RESPOSTA%"=="S" \(/);
+  // Enter vazio não apaga: RESPOSTA é zerada antes do set /p
+  assert.ok(limpar.indexOf('set "RESPOSTA="') < limpar.indexOf('set /p "RESPOSTA='));
+});
+
+test("o Limpar.bat avisa quando o Sabiá está aberto segurando o perfil", () => {
+  // o Chrome trava arquivos do perfil: limpar pela metade é pior do que não
+  // limpar, porque parece que limpou
+  assert.match(limpar, /if exist "dados" \(/);
+  assert.match(limpar, /NAO consegui apagar tudo/);
+  assert.match(limpar, /exit \/b 1/);
+});
+
+test("o Limpar.bat não encosta na chave da IA", () => {
+  // a chave mora no Sabia.bat: limpar entre sessões não pode custar uma
+  // viagem ao Bloco de Notas em 30 máquinas
+  assert.doesNotMatch(limpar, /CHAVE=|DEEPSEEK|SABIA_PADRAO_/);
+  assert.match(limpar, /A chave da IA NAO se perde/);
+});
+
+test("o Limpar.bat não fecha a janela sem a pessoa ler", () => {
+  // em todos os caminhos: já limpo, cancelado, falhou e deu certo
+  // (\r no fim: o arquivo é CRLF, e `$` do JS casa antes do \n, não do \r)
+  assert.equal(limpar.match(/^ *pause\r$/gm)?.length, 4);
+});
+
 test("as linhas acabam em CRLF (o cmd erra com LF só)", () => {
-  for (const bat of [comIA, semIA]) {
+  for (const bat of [comIA, semIA, limpar]) {
     assert.ok(bat.endsWith("\r\n"));
     assert.equal(bat.split("\n").length, bat.split("\r\n").length);
   }
 });
 
 test("os .bat não têm acento (a página de código da máquina varia)", () => {
-  for (const bat of [comIA, semIA]) assert.doesNotMatch(bat, /[^\x00-\x7F]/);
+  for (const bat of [comIA, semIA, limpar]) assert.doesNotMatch(bat, /[^\x00-\x7F]/);
 });
 
 test("a janela não fecha sozinha quando dá erro", () => {

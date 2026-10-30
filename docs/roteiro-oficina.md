@@ -81,14 +81,23 @@ A página precisa estar **aberta em cada máquina**. Em ordem de preferência:
    compartilhamento da escola e passe o caminho.
 3. **Pendrive.** São 40 KB: copia em um segundo, ao contrário do pacote do
    Sabiá.
+4. **A própria pasta do Sabiá.** Desde a v1.1.3 a página vai dentro do pacote
+   portátil, em `Sabia\oficina\index.html`. Se as máquinas já receberam o ZIP,
+   não precisa distribuir nada: é dois cliques ali. Serve de rede de segurança
+   para quando o servidor local ou o compartilhamento da escola falharem.
 
 Confira antes: **abra a página e clique em Conferir.** Tem que dar **4 de 5** —
 o teste vermelho é o erro do Passo 3, e ele é de propósito.
 
 **Entre as sessões, feche a aba.** O código do aluno vive na aba (`sessionStorage`)
 e morre com ela. Se a aba continuar aberta, a turma seguinte herda o assistente
-da turma anterior — o mesmo cuidado da pasta `dados` em [`oficina.md`](oficina.md).
-O botão **Voltar ao começo** resolve caso a caso.
+da turma anterior — o mesmo cuidado que o `Limpar.bat` faz pela pasta `dados`
+do Sabiá (ver [`oficina.md`](oficina.md)). O botão **Voltar ao começo**
+resolve caso a caso.
+
+A limpeza da troca de turma são, então, duas coisas: **fechar a aba** da
+página da oficina, e rodar o **`Limpar.bat`** do Sabiá. A primeira é dado
+fictício, a segunda é boletim de verdade.
 
 ### Checklist
 
@@ -100,6 +109,8 @@ O botão **Voltar ao começo** resolve caso a caso.
 - [ ] `npm run doctor -- --fontes` com as cinco fontes lidas com segurança
 - [ ] celular da dona da conta por perto (código 2FA)
 - [ ] `offline/index.html` aberto numa aba, caso a rede caia na hora da demo
+- [ ] o `Limpar.bat` testado uma vez numa máquina, para a troca de turma não
+      ser a primeira vez que alguém clica nele
 
 ---
 

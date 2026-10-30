@@ -5,3 +5,6 @@
  * O teste confere este texto; o resto do empacotador só roda no Windows.
  */
 export function conteudoBat(provedor: "deepseek" | "local"): string;
+
+/** O texto do Limpar.bat: a troca de alunos entre as sessões da oficina. */
+export function conteudoLimpar(): string;

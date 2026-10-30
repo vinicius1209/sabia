@@ -20,11 +20,20 @@ Sabia/
   node/node.exe        o Node (no Windows, o .exe se basta)
   app/node_modules/    o Sabiá, o Playwright, o Express
   ms-playwright/       o Chromium já baixado
+  oficina/index.html   a página onde o aluno escreve o assistente dele
+  offline/index.html   o Sabiá simulado, para quando a rede cai
   Sabia.bat            o duplo clique
-  Sabia-sem-IA.bat     o plano B
+  Sabia-sem-IA.bat     o plano B, sem IA
+  Limpar.bat           a troca de alunos entre as sessões
   LEIA-ME.txt          o mesmo recado, para quem abrir a pasta
   dados/              (nasce no primeiro uso)
 ```
+
+As duas páginas são 60 KB num pacote de 364 MB, e abrem com dois cliques —
+sem o Sabiá rodando e sem internet. A `oficina/` continua podendo ser servida
+na rede local na véspera (ver [`roteiro-oficina.md`](roteiro-oficina.md)); o
+que mudou é que ela deixou de ser a única forma, e o plano B da rede caída
+passou a existir **na máquina que precisa dele**.
 
 Nada é instalado, nada vai para o registro do Windows, nada é baixado na hora.
 O `.bat` aponta `SABIA_HOME` e `PLAYWRIGHT_BROWSERS_PATH` para dentro da
@@ -74,9 +83,30 @@ Pendrive, ou uma máquina baixa e compartilha na rede local.
 
 ## Entre as sessões
 
-**Apague a pasta `dados`.** Ela guarda a conta, a sessão do navegador e as
-conversas de quem usou. Sem apagar, o aluno das 14h abre o Sabiá já dentro da
-conta do aluno das 10h.
+**Feche o Sabiá e dê dois cliques no `Limpar.bat`.** Ele apaga a pasta `dados`
+— conta, sessão do navegador e conversas — depois de pedir confirmação. A
+chave da IA não se perde: ela mora no `Sabia.bat`.
+
+Sem limpar, o aluno das 14h abre o Sabiá já dentro da conta do aluno das 10h.
+
+**Não apague só o `config.json`.** É pior do que não limpar. O perfil do
+navegador sobrevive, e o login do Sabiá confere a sessão **antes** de olhar as
+credenciais:
+
+```js
+if (await pareceLogado(p)) {          // o cookie do aluno anterior ainda vale
+  onStep("Já estava conectado");
+  return await selectEntity(p, onStep);
+}
+```
+
+O aluno novo vê a tela de primeiro uso, digita o celular e a senha **dele**, e
+recebe o boletim do aluno anterior — achando que entrou na conta própria. É a
+pasta inteira, e é exatamente isso que o `Limpar.bat` faz.
+
+Se o `Limpar.bat` disser que não conseguiu apagar tudo, o Sabiá ficou aberto
+segurando o perfil do Chrome: feche a janela preta com `Ctrl+C`, feche o
+navegador, e rode de novo. Ele sai com erro em vez de limpar pela metade.
 
 Com a pasta `dados` dentro do pacote (e não em `C:\Users\<você>\.sabia`),
 apagar é só apagar a pasta — não sobra nada no perfil do Windows.
@@ -119,7 +149,8 @@ copia. Para uma oficina isso é aceitável, mas use chave com limite de gasto e
 | o aluno quer trocar a conta do ClassApp | Ajustes → a seção da conta → salvar → **Conectar**. Não é no `.bat`: a conta só existe na tela |
 | a chave estrangulou ou acabou o saldo | cole outra em Ajustes → Motor de IA, sem fechar o Sabiá |
 | a IA parou de responder no meio | troque para o `Sabia-sem-IA.bat`: ele continua lendo os dados reais, respondendo por regras |
-| nada funciona, a rede caiu | abra o `offline/index.html` do repositório: é a simulação com dados fictícios |
+| nada funciona, a rede caiu | abra o `offline\index.html` **de dentro da pasta `Sabia`**: é a simulação com dados fictícios, e não precisa de rede nem do Sabiá |
+| o aluno anterior continua logado | o `Limpar.bat` não foi rodado, ou foi rodado com o Sabiá aberto (ele avisa quando isso acontece) |
 
 ## O que preparar além do pacote
 
